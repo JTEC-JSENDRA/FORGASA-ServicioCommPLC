@@ -12,9 +12,9 @@ namespace ServicioWindows
     {
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            int TiempoCicloServicio = 1000;
+            int TiempoCicloServicio = 2000;
             string DB_Offsets = "7999";
-            string RutaApi = "https://localhost:7106/api/Recetas/";
+            string RutaApi = "http://localhost:7248/api/Worker/AlgunaLanzada/";
 
             string RutaLog = $"C:\\Informes\\Logs.txt";
             Logs Logs = new Logs(RutaLog);
@@ -30,6 +30,7 @@ namespace ServicioWindows
             bool [] StartUp = new bool[NumeroPLCs];
             bool [] PLC_Enable = new bool[NumeroPLCs];
             short [,] EtapaAct = new short[NumeroPLCs, NumeroReactores];
+            bool[,] Estado = new bool[NumeroPLCs, NumeroReactores];
 
             Plc [] PLC = new Plc[NumeroPLCs];
             CommPLC[] commPLC = new CommPLC[NumeroPLCs];
@@ -48,8 +49,7 @@ namespace ServicioWindows
             Logs.Iniciar("Servicio iniciado");
 
             while (!stoppingToken.IsCancellationRequested)
-            {
-                
+            {                
                 for (int i = 0; i <= (NumeroPLCs - 1); i++)
                 {
                     //Se comprueba la disponibilidad del PLC seleccionado de la lista
@@ -68,7 +68,7 @@ namespace ServicioWindows
                             {
                                 //Se comprueba el numero total de reactores que tiene receta
                                 for (int u = 0; u <= (NumeroReactores - 1); u++)
-                                {
+                                {                                    
                                     //Se seleccionan los reactores que se encuentran en el PLC seleccionado de la lista
                                     if (TotalReactores.ObtenerReactores()[u][0] == IP)
                                     {

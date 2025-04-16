@@ -178,30 +178,31 @@ namespace ServicioWindows.Clases
             short OffsetReceta = ReadINT(DB_Offsets, "0.0");
             short LongUDT = ReadINT(DB_Offsets, "2.0");
 
-            string OffsetCheckRecetaInicio = (OffsetReceta + 0).ToString();
-            string OffsetNumEtapas = (OffsetReceta + 2).ToString();
-            string OffsetEtapaAct = (OffsetReceta + 4).ToString();
-            string OffsetOF = (OffsetReceta + 6).ToString();
-            string OffsetNombreReceta = (OffsetReceta + 38).ToString();
-            string OffsetNombreEtapa = (OffsetReceta + 140).ToString();
-            string OffsetComm = (OffsetReceta + 172).ToString();
-            string OffsetCheckRecetaFin = (OffsetReceta + (LongUDT - 2)).ToString();
+            string OffsetCheckRecetaInicio = (OffsetReceta + 0).ToString(); //118.0
+            string OffsetNumEtapas = (OffsetReceta + 2).ToString(); //120.0
+            string OffsetEtapaAct = (OffsetReceta + 4).ToString(); //122.0
+            string OffsetOF = (OffsetReceta + 6).ToString(); //124.0
+            string OffsetNombreReceta = (OffsetReceta + 38).ToString(); //156.0
+            string OffsetNombreEtapa = (OffsetReceta + 140).ToString(); //258.0
+            string OffsetComm = (OffsetReceta + 172).ToString(); //290.0
+            string OffsetCheckRecetaFin = (OffsetReceta + (LongUDT - 2)).ToString(); //464.0
+
 
             //Datos generales de la receta
             short NumEtapas;
             EtapaAct = ReadINT(DB, $"{OffsetEtapaAct}.0");
-            string OF = ReadSTRING(DB, $"{OffsetOF}.0");
-            string NombreReceta = ReadSTRING(DB, $"{OffsetNombreReceta}.0");
+            string OF; //= ReadSTRING(DB, $"{OffsetOF}.0");
+            string NombreReceta; //= ReadSTRING(DB, $"{OffsetNombreReceta}.0");
             string NombreEtapa;
-            string RutaConsumoAPI = $"{RutaApi}{NombreReceta}";
+            string RutaConsumoAPI = $"{RutaApi}{NombreReactor}";
 
             //Bits de comunicacion del gestor de recetas del PLC con el gestor de recetas del servicio
-            bool InicioReceta = ReadBOOL(DB, $"{OffsetComm}.0");
-            bool InicioEtapa = ReadBOOL(DB, $"{OffsetComm}.1");
-            bool EtapaActualCargada = ReadBOOL(DB, $"{OffsetComm}.2");
-            bool InicioCargado = ReadBOOL(DB, $"{OffsetComm}.3");
-            bool SiguienteEtapaRecibida = ReadBOOL(DB, $"{OffsetComm}.4");
-            bool UltimaEtapa = ReadBOOL(DB, $"{OffsetComm}.5");
+            bool InicioReceta = ReadBOOL(DB, $"{OffsetComm}.0"); //290.0
+            bool InicioEtapa = ReadBOOL(DB, $"{OffsetComm}.1"); //290.1
+            bool EtapaActualCargada = ReadBOOL(DB, $"{OffsetComm}.2"); //290.2
+            bool InicioCargado = ReadBOOL(DB, $"{OffsetComm}.3"); //290.3
+            bool SiguienteEtapaRecibida = ReadBOOL(DB, $"{OffsetComm}.4"); //290.4
+            bool UltimaEtapa = ReadBOOL(DB, $"{OffsetComm}.5"); //290.5
 
             //Se obtienen los valores correspondientes para la comprobacion del Offset y la longitud de la UDT de los datos de la receta en el DB del PLC seleciconado
             short CheckRecetaInicio = ReadINT(DB, $"{OffsetCheckRecetaInicio}.0");
@@ -231,20 +232,51 @@ namespace ServicioWindows.Clases
             {
                 WriteBOOL(DB_Offsets, "4.0", false);
                 WriteBOOL(DB_Offsets, "4.1", false);
+
+                if (!InicioReceta)
+                {
+                    HttpClient httpClient = new HttpClient();
+                    //Console.WriteLine($"{apiUrl}");
+                    HttpResponseMessage response = await httpClient.GetAsync(RutaConsumoAPI);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string responseBody = await response.Content.ReadAsStringAsync();
+                        //Console.WriteLine($"ResponseBody en reactor {NombreReactor} = {responseBody}");
+
+                        if (responseBody != "false")
+                        {
+                            OF = ReadSTRING(DB, $"{OffsetOF}.0");
+                            //Console.WriteLine($"OF en reactor {NombreReactor} = {OF}");
+                            if (OF == null)
+                            {
+                                WriteBOOL(DB, $"{OffsetComm}.0", true);
+                                Console.WriteLine($"Receta iniciada en reactor {NombreReactor}");
+                            }
+                        }
+                    }
+                }
+
+
                 if (InicioReceta && !InicioCargado)
                 {
                     EtapaAct = 0;
+                    //Console.WriteLine("1");
+                    OF = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "ordenFabricacion")));
+                    NombreReceta = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "nombreReceta"))); 
                     NumEtapas = Int16.Parse(await (DatosAPI.DatosCabecera(RutaConsumoAPI, "numeroEtapas")));
                     NombreEtapa = await (DatosAPI.DatosCabeceraEtapa(RutaConsumoAPI, "nombre", EtapaAct + 1));
+                    //Console.WriteLine("2");
 
                     //Se cargan los datos de la primera etapa
+                    WriteSTRING(DB, $"{OffsetOF}.0", OF, Logs);
+                    WriteSTRING(DB, $"{OffsetNombreReceta}.0", NombreReceta, Logs);
                     WriteINT(DB, $"{OffsetNumEtapas}.0", NumEtapas);
                     WriteSTRING(DB, $"{OffsetNombreEtapa}.0", NombreEtapa, Logs);
 
                     await DatosAPI.DatosEtapas(DB, DB_Offsets, RutaConsumoAPI, EtapaAct + 1);
 
                     WriteBOOL(DB, $"{OffsetComm}.3", true); //BOOL Inicio Cargado
-
                     Logs.RegistrarInfo($"Inicio de la receta en el reactor: {NombreReactor}");
 
                 }
@@ -289,9 +321,19 @@ namespace ServicioWindows.Clases
         public void CargaDatosReceta(string DB, string DB_Offsets, string NombrePropiedad, string ValorConsigna)
         {
 
-            short OffsetReceta = ReadINT(DB_Offsets, "0.0");
-            int OffsetProcesoPrincipal = OffsetReceta + 198;
-            int OffsetProcesoAgitacion = OffsetReceta + 208;
+            short OffsetReceta = ReadINT(DB_Offsets, "0.0"); //118.0
+            int OffsetTipoProceso = OffsetReceta + 260; //174 + 86
+            int OffsetProcesoCargaSolidos1 = OffsetReceta + 262; //176 + 86
+            int OffsetProcesoCargaSolidos2 = OffsetReceta + 272; //186 + 86
+            int OffsetProcesoCargaSolidos3 = OffsetReceta + 282; //196 + 86
+            int OffsetProcesoCargaAguaDescal = OffsetReceta + 292; //206 + 86
+            int OffsetProcesoCargaAguaRecup = OffsetReceta + 302; //216 + 86
+            int OffsetProcesoCargaAntiespumante = OffsetReceta + 304; //218 + 86
+            int OffsetProcesoCargaLigno = OffsetReceta + 310; //224 + 86
+            int OffsetProcesoCargaPotasa = OffsetReceta + 316; //230 + 86
+            int OffsetProcesoEspera = OffsetReceta + 322; //236 + 86
+            int OffsetProcesoAgitacion = OffsetReceta + 324; //238 + 86 //176 + 86
+            int OffsetProcesoTemperatura = OffsetReceta + 340; //254 + 86
 
             switch (NombrePropiedad)
             {
@@ -299,101 +341,153 @@ namespace ServicioWindows.Clases
                     Tipo = ValorConsigna;
                     switch (ValorConsigna)
                     {
-                        case "Carga":
+                        case "Carga_Solidos_1":
+                            Puntero = OffsetProcesoCargaSolidos1;
+                        break;
+                        case "Carga_Solidos_2":
+                            Puntero = OffsetProcesoCargaSolidos2;
+                        break;
+                        case "Carga_Solidos_3":
+                            Puntero = OffsetProcesoCargaSolidos3;
+                        break;
+                        case "Carga_Agua_Descal":
+                            Puntero = OffsetProcesoCargaAguaDescal;
+                        break;
+                        case "Carga_Agua_Recup":
+                            Puntero = OffsetProcesoCargaAguaRecup;
+                        break;
+                        case "Carga_Antiespumante":
+                            Puntero = OffsetProcesoCargaAntiespumante;
+                        break;
+                        case "Carga_Ligno":
+                            Puntero = OffsetProcesoCargaLigno;
+                        break;
+                        case "Carga_Potasa":
+                            Puntero = OffsetProcesoCargaPotasa;
+                        break;
                         case "Espera":
-                            Puntero = OffsetProcesoPrincipal;
-                            break;
+                            Puntero = OffsetProcesoEspera;
+                        break;
                         case "Agitacion":
                             Puntero = OffsetProcesoAgitacion;
-                            break;
+                        break;
+                        case "Temperatura":
+                            Puntero = OffsetProcesoTemperatura;
+                        break;
                         default:
-                            break;
+                        break;
                     }
-                    break;
+                break;
 
                 case "consigna":
                     Consigna = ValorConsigna;
-                    if (Tipo == "Carga" || Tipo == "Espera")
+                    if (Tipo == "Carga_Solidos_1" || Tipo == "Carga_Solidos_2" || Tipo == "Carga_Solidos_3" || Tipo ==  "Carga_Agua_Descal" || Tipo == "Carga_Agua_Recup"
+                        || Tipo == "Carga_Antiespumante" || Tipo == "Carga_Ligno" || Tipo == "Carga_Potasa")
                     {
                         switch (ValorConsigna)
                         {
-                            case "MateriaPrima":
-                                Offset = 2;
-                                break;
                             case "Cantidad":
-                                Offset = 4;
-                                break;
-                            case "Tiempo":
-                                Offset = 8;
-                                break;
+                                Offset = 2;
+                            break;
+                            case "Velocidad_Vibracion":
+                                Offset = 6;
+                            break;
                         }
                     }
-
+                    if (Tipo == "Espera")
+                    {
+                        switch (ValorConsigna)
+                        {                            
+                            case "Tiempo":
+                                Offset = 0;
+                            break;
+                        }
+                    }
                     if (Tipo == "Agitacion")
                     {
                         switch (ValorConsigna)
                         {
                             case "Modo":
                                 Offset = 2;
-                                break;
-                            case "Velocidad":
+                            break;
+                            case "Intermitencia":
                                 Offset = 4;
-                                break;
-                            case "Tiempo ON":
+                            break;
+                            case "Velocidad":
+                                Offset = 6;
+                            break;
+                            case "Temporizado":
                                 Offset = 10;
-                                break;
-                            case "Tiempo OFF":
+                            break;
+                            case "Tiempo_ON":
                                 Offset = 12;
+                            break;
+                            case "Tiempo_OFF":
+                                Offset = 14;
+                            break;
+                        }
+                    }
+                    if (Tipo == "Temperatura")
+                    {
+                        switch (ValorConsigna)
+                        {
+                            case "Temperatura":
+                                Offset = 2;
                                 break;
                         }
                     }
-                    break;
+                break;
 
                 case "valor":
                     string DireccionConsignas = $"{(Puntero + Offset)}.0";
-                    string ProcesoCarga = $"{Puntero}.0";
-                    string ProcesoTiempo = $"{Puntero}.1";
-                    string ProcesoSecundario = $"{Puntero}.0";
+                    
+                    //Traspaso de consignas
+                    if (Consigna == "Cantidad" || Consigna == "Velocidad" || Consigna == "Velocidad_Vibracion" || Consigna == "Temperatura")
+                    {
+                        WriteFLOAT(DB, DireccionConsignas, Double.Parse(ValorConsigna));
+                    }
+                    else if (Consigna == "Intermitencia")
+                    {
+                        WriteBOOL(DB, DireccionConsignas, Boolean.Parse(ValorConsigna));
+                    }else
+                    {                       
+                        WriteINT(DB, DireccionConsignas, Int16.Parse(ValorConsigna));
+                    }
+                break;
+
+                case "procesoActivo":                    
+                    string ProcesoCarga = $"{OffsetTipoProceso}.0";
+                    string ProcesoEspera = $"{OffsetTipoProceso}.1";
+                    //string ProcesoSecundario = $"{Puntero}.0";
 
                     //Resets de todos los procesos secundarios
 
                     WriteBOOL(DB, $"{OffsetProcesoAgitacion.ToString()}.0", false);
-
-
+                    WriteBOOL(DB, $"{OffsetProcesoTemperatura.ToString()}.0", false);
+                    //Console.WriteLine($"Valor de tipo {Tipo} y consigna de procesoActivo = {ValorConsigna}");
                     //Activaciones de procesos
-                    if (Tipo == "Carga" || Tipo == "Espera")
-                    {
-                        if (Tipo == "Carga")
-                        {
-                            WriteBOOL(DB, ProcesoCarga, true);
-                            WriteBOOL(DB, ProcesoTiempo, false);
-                        }
-                        else
-                        {
-                            WriteBOOL(DB, ProcesoCarga, false);
-                            WriteBOOL(DB, ProcesoTiempo, true);
-                        }
+                    if ((Tipo == "Carga_Solidos_1" || Tipo == "Carga_Solidos_2" || Tipo == "Carga_Solidos_3" || Tipo == "Carga_Agua_Descal" || Tipo == "Carga_Agua_Recup"
+                        || Tipo == "Carga_Antiespumante" || Tipo == "Carga_Ligno" || Tipo == "Carga_Potasa") && (ValorConsigna.ToString() == "True"))
+                    {                        
+                        WriteBOOL(DB, ProcesoCarga, true);
+                        WriteBOOL(DB, ProcesoEspera, false);
+                        //Console.WriteLine($"Proceso tipo: {Tipo}");
                     }
-                    else
+                    else if ((Tipo == "Espera") && (ValorConsigna.ToString() == "True"))
                     {
-                        WriteBOOL(DB, ProcesoSecundario, true);
+                        WriteBOOL(DB, ProcesoCarga, false);
+                        WriteBOOL(DB, ProcesoEspera, true);
+                        //Console.WriteLine($"Proceso tipo: {Tipo}");
                     }
+                break;
 
-                    //Traspaso de consignas
-                    if (Consigna == "Cantidad" || Consigna == "Velocidad")
-                    {
+                case "id":
 
-                        WriteFLOAT(DB, DireccionConsignas, Double.Parse(ValorConsigna));
-                    }
-                    else
-                    {
-                        WriteINT(DB, DireccionConsignas, Int16.Parse(ValorConsigna));
-                    }
-                    break;
+                break;
 
                 default:
-                    Console.WriteLine("Opcion no valida");
-                    break;
+                    Console.WriteLine($"Opcion no valida. Propiedad: {NombrePropiedad}");
+                break;
             }
 
         }

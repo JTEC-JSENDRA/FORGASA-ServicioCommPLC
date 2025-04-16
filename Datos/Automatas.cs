@@ -10,7 +10,7 @@ namespace ServicioWindows.Datos
             PLCs = new List<string>();
 
             //Aqui se agregan los PLCs de la planta
-            PLCs.Add("192.168.23.1");//PLC_Electrolito
+            PLCs.Add("192.168.8.1");//PLC_Electrolito
             //PLCs.Add("192.168.24.1");//PLC_Sales
 
         }
