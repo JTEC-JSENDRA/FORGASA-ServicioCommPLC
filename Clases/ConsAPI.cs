@@ -97,7 +97,7 @@ namespace ServicioWindows.Clases
                 JArray jsonArray = JArray.Parse(responseBody);
                 NumeroEtapas = (jsonArray.Count)-1;
 
-                Console.WriteLine($"Numero de etapas: {NumeroEtapas}");
+                //Console.WriteLine($"Numero de etapas: {NumeroEtapas}");
                 JArray Etapa = (JArray)jsonArray[NEtapa];
                 
                 NumeroProcesos = (Etapa.Count)-1;

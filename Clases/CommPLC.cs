@@ -458,20 +458,23 @@ namespace ServicioWindows.Clases
                 case "procesoActivo":                    
                     string ProcesoCarga = $"{OffsetTipoProceso}.0";
                     string ProcesoEspera = $"{OffsetTipoProceso}.1";
-                    //string ProcesoSecundario = $"{Puntero}.0";
+                    string ProcesoActivo = $"{Puntero}.0";
 
-                    //Resets de todos los procesos secundarios
+                    //Resets de todos los procesos
+                    WriteBOOL(DB, $"{ProcesoActivo.ToString()}", false);
+                    //WriteBOOL(DB, $"{OffsetProcesoAgitacion.ToString()}.0", false);
+                    //WriteBOOL(DB, $"{OffsetProcesoTemperatura.ToString()}.0", false);
 
-                    WriteBOOL(DB, $"{OffsetProcesoAgitacion.ToString()}.0", false);
-                    WriteBOOL(DB, $"{OffsetProcesoTemperatura.ToString()}.0", false);
                     //Console.WriteLine($"Valor de tipo {Tipo} y consigna de procesoActivo = {ValorConsigna}");
+
                     //Activaciones de procesos
                     if ((Tipo == "Carga_Solidos_1" || Tipo == "Carga_Solidos_2" || Tipo == "Carga_Solidos_3" || Tipo == "Carga_Agua_Descal" || Tipo == "Carga_Agua_Recup"
                         || Tipo == "Carga_Antiespumante" || Tipo == "Carga_Ligno" || Tipo == "Carga_Potasa") && (ValorConsigna.ToString() == "True"))
-                    {                        
+                    {
                         WriteBOOL(DB, ProcesoCarga, true);
                         WriteBOOL(DB, ProcesoEspera, false);
-                        //Console.WriteLine($"Proceso tipo: {Tipo}");
+                        WriteBOOL(DB, $"{ProcesoActivo.ToString()}", true);
+                        //Console.WriteLine($"Proceso activo: {ProcesoActivo}");
                     }
                     else if ((Tipo == "Espera") && (ValorConsigna.ToString() == "True"))
                     {
@@ -479,7 +482,27 @@ namespace ServicioWindows.Clases
                         WriteBOOL(DB, ProcesoEspera, true);
                         //Console.WriteLine($"Proceso tipo: {Tipo}");
                     }
-                break;
+                    
+                    //Activacion proceso secundario agitacion
+                    if(Tipo == "Agitacion" && (ValorConsigna.ToString() == "True"))
+                    {                                                
+                        WriteBOOL(DB, $"{OffsetProcesoAgitacion.ToString()}.0", true);                                                                
+                    }
+                    else if (Tipo == "Agitacion" && (ValorConsigna.ToString() == "False"))
+                    {
+                        WriteBOOL(DB, $"{OffsetProcesoAgitacion.ToString()}.0", false);
+                    }
+
+                    //Activacion proceso secundario temperatura
+                    if (Tipo == "Temperatura" && (ValorConsigna.ToString() == "True"))
+                    {
+                        WriteBOOL(DB, $"{OffsetProcesoTemperatura.ToString()}.0", true);
+                    }
+                    else if (Tipo == "Temperatura" && (ValorConsigna.ToString() == "False"))
+                    {
+                        WriteBOOL(DB, $"{OffsetProcesoTemperatura.ToString()}.0", false);
+                    }
+                    break;
 
                 case "id":
 
