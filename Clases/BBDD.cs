@@ -1,5 +1,4 @@
-﻿using System;
-using System.Data;
+﻿using System.Data;
 using System.Data.SqlClient;
 
 namespace ServicioWindows.Clases
@@ -99,7 +98,7 @@ namespace ServicioWindows.Clases
             int[] FilasColumnas = ContarFilasColumnas(NombreTabla);
             int Filas = FilasColumnas[0];
             int Columnas = FilasColumnas[1];
-            string[,] Resultado = new string [Filas, Columnas];
+            string[,] Resultado = new string[Filas, Columnas];
             int incremental = 0;
 
             OpenConnection();
@@ -155,7 +154,7 @@ namespace ServicioWindows.Clases
             int nFilasTablaBBDD = TablaBBDD.GetLength(0);
             string stingID_OF = Convert.ToString(ID_OF);
             string TablaEscritura;
-            string [] DatosEscritura = new string[nDatosPLC];
+            string[] DatosEscritura = new string[nDatosPLC];
 
             OpenConnection();
 
@@ -169,7 +168,7 @@ namespace ServicioWindows.Clases
                         Console.WriteLine(TablaEscritura);
                         for (int k = 0; k < (nDatosPLC); k++)
                         {
-                            DatosEscritura[k] = DatosPLC[i,k];
+                            DatosEscritura[k] = DatosPLC[i, k];
                             //Console.WriteLine(DatosEscritura[k]);
                         }
                         InsertTablaProceso(TablaEscritura, DatosEscritura, stingID_OF);

@@ -1,6 +1,4 @@
-﻿
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 using S7.Net;
 
 namespace ServicioWindows.Clases
@@ -20,7 +18,7 @@ namespace ServicioWindows.Clases
             HttpClient httpClient = new HttpClient();
             //Console.WriteLine($"{apiUrl}");
             HttpResponseMessage response = await httpClient.GetAsync(apiUrl);
-            
+
             if (response.IsSuccessStatusCode)
             {
                 string responseBody = await response.Content.ReadAsStringAsync();
@@ -95,12 +93,12 @@ namespace ServicioWindows.Clases
                 //Console.WriteLine($"Response body de datos etapas para la db {DB}: {responseBody}");
                 //Si el jarray tiene varias recetas te cuenta todas las etapas contadas asi
                 JArray jsonArray = JArray.Parse(responseBody);
-                NumeroEtapas = (jsonArray.Count)-1;
+                NumeroEtapas = (jsonArray.Count) - 1;
 
                 //Console.WriteLine($"Numero de etapas: {NumeroEtapas}");
                 JArray Etapa = (JArray)jsonArray[NEtapa];
-                
-                NumeroProcesos = (Etapa.Count)-1;
+
+                NumeroProcesos = (Etapa.Count) - 1;
                 //Console.WriteLine($"Numero de procesos en la etapa {NEtapa}: {NumeroProcesos}");
 
                 for (int i = 1; i <= (NumeroProcesos); i++)
@@ -111,7 +109,7 @@ namespace ServicioWindows.Clases
                     NumeroConsignas = (Proceso.Count());
                     //Console.WriteLine($"Numero de Consignas en el proceso {i}: {NumeroConsignas}");
 
-                    for (int u = 0; u <= (NumeroConsignas-1); u++)
+                    for (int u = 0; u <= (NumeroConsignas - 1); u++)
                     {
                         JObject ProcesoObj = (JObject)jsonArray[NEtapa][i][u];
                         //Console.WriteLine($"ProcesoObj: {ProcesoObj}");

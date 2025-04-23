@@ -1,5 +1,6 @@
-﻿using System.Text;
-using S7.Net;
+﻿using S7.Net;
+using System.Text;
+using ServicioWindows.Models;
 
 namespace ServicioWindows.Clases
 {
@@ -7,7 +8,7 @@ namespace ServicioWindows.Clases
     {
         private readonly Plc PLC;
         private readonly Utiles Util = new Utiles();
-        
+
         private string Tipo;
         private string Consigna;
         private int Puntero;
@@ -170,9 +171,10 @@ namespace ServicioWindows.Clases
         #endregion
 
         #region Metodos Receta
-        public async Task<short> GestorReceta(string DB, string DB_Offsets, string NombreReactor, short EtapaAct, string RutaApi, Logs Logs)
+        public async Task<short> GestorReceta(string DB, string DB_Offsets, string NombreReactor, short EtapaAct, string RutaApi, Logs Logs)//, DatosGenReceta GenReceta)
         {
             ConsAPI DatosAPI = new ConsAPI(PLC);
+            DatosGenReceta GenReceta = new DatosGenReceta();
 
             //Calculo de offsets para en caso de que se mueva la estructura dentro del DB del gestor de recetas del PLC
             short OffsetReceta = ReadINT(DB_Offsets, "0.0");
@@ -189,11 +191,7 @@ namespace ServicioWindows.Clases
 
 
             //Datos generales de la receta
-            short NumEtapas;
             EtapaAct = ReadINT(DB, $"{OffsetEtapaAct}.0");
-            string OF; //= ReadSTRING(DB, $"{OffsetOF}.0");
-            string NombreReceta; //= ReadSTRING(DB, $"{OffsetNombreReceta}.0");
-            string NombreEtapa;
             string RutaConsumoAPI = $"{RutaApi}{NombreReactor}";
 
             //Bits de comunicacion del gestor de recetas del PLC con el gestor de recetas del servicio
@@ -246,9 +244,9 @@ namespace ServicioWindows.Clases
 
                         if (responseBody != "false")
                         {
-                            OF = ReadSTRING(DB, $"{OffsetOF}.0");
+                            GenReceta.OF = ReadSTRING(DB, $"{OffsetOF}.0");
                             //Console.WriteLine($"OF en reactor {NombreReactor} = {OF}");
-                            if (OF == null)
+                            if (GenReceta.OF == null)
                             {
                                 WriteBOOL(DB, $"{OffsetComm}.0", true);
                                 Console.WriteLine($"Receta iniciada en reactor {NombreReactor}");
@@ -262,17 +260,17 @@ namespace ServicioWindows.Clases
                 {
                     EtapaAct = 0;
                     //Console.WriteLine("1");
-                    OF = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "ordenFabricacion")));
-                    NombreReceta = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "nombreReceta"))); 
-                    NumEtapas = Int16.Parse(await (DatosAPI.DatosCabecera(RutaConsumoAPI, "numeroEtapas")));
-                    NombreEtapa = await (DatosAPI.DatosCabeceraEtapa(RutaConsumoAPI, "nombre", EtapaAct + 1));
+                    GenReceta.OF = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "ordenFabricacion")));
+                    GenReceta.NombreReceta = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "nombreReceta")));
+                    GenReceta.NumEtapas = Int16.Parse(await (DatosAPI.DatosCabecera(RutaConsumoAPI, "numeroEtapas")));
+                    GenReceta.NombreEtapa = await (DatosAPI.DatosCabeceraEtapa(RutaConsumoAPI, "nombre", EtapaAct + 1));
                     //Console.WriteLine("2");
 
                     //Se cargan los datos de la primera etapa
-                    WriteSTRING(DB, $"{OffsetOF}.0", OF, Logs);
-                    WriteSTRING(DB, $"{OffsetNombreReceta}.0", NombreReceta, Logs);
-                    WriteINT(DB, $"{OffsetNumEtapas}.0", NumEtapas);
-                    WriteSTRING(DB, $"{OffsetNombreEtapa}.0", NombreEtapa, Logs);
+                    WriteSTRING(DB, $"{OffsetOF}.0", GenReceta.OF, Logs);
+                    WriteSTRING(DB, $"{OffsetNombreReceta}.0", GenReceta.NombreReceta, Logs);
+                    WriteINT(DB, $"{OffsetNumEtapas}.0", GenReceta.NumEtapas);
+                    WriteSTRING(DB, $"{OffsetNombreEtapa}.0", GenReceta.NombreEtapa, Logs);
 
                     await DatosAPI.DatosEtapas(DB, DB_Offsets, RutaConsumoAPI, EtapaAct + 1);
 
@@ -284,21 +282,21 @@ namespace ServicioWindows.Clases
                 if (EtapaActualCargada && !InicioEtapa)
                 {
                     EtapaAct++;
-                    NumEtapas = ReadINT(DB, $"{OffsetNumEtapas}.0");
+                    GenReceta.NumEtapas = ReadINT(DB, $"{OffsetNumEtapas}.0");
 
                     WriteBOOL(DB, $"{OffsetComm}.3", true);
                     WriteINT(DB, $"{OffsetEtapaAct}.0", EtapaAct);
 
 
-                    if (EtapaAct >= NumEtapas)
+                    if (EtapaAct >= GenReceta.NumEtapas)
                     {
                         WriteBOOL(DB, $"{OffsetComm}.5", true); //BOOL Ultima Etapa
                         Logs.RegistrarInfo($"Ultima etapa de la receta en el reactor: {NombreReactor}");
                     }
                     else
                     {
-                        NombreEtapa = await (DatosAPI.DatosCabeceraEtapa(RutaConsumoAPI, "nombre", EtapaAct));
-                        WriteSTRING(DB, $"{OffsetNombreEtapa}.0", NombreEtapa, Logs);
+                        GenReceta.NombreEtapa = await (DatosAPI.DatosCabeceraEtapa(RutaConsumoAPI, "nombre", EtapaAct));
+                        WriteSTRING(DB, $"{OffsetNombreEtapa}.0", GenReceta.NombreEtapa, Logs);
                         //Se cargan los datos de la siguiente etapa
                         await DatosAPI.DatosEtapas(DB, DB_Offsets, RutaConsumoAPI, EtapaAct + 1);
 
@@ -308,9 +306,9 @@ namespace ServicioWindows.Clases
 
                 if (SiguienteEtapaRecibida && !UltimaEtapa)
                 {
-                    NumEtapas = ReadINT(DB, $"{OffsetNumEtapas}.0");
+                    GenReceta.NumEtapas = ReadINT(DB, $"{OffsetNumEtapas}.0");
 
-                    if (EtapaAct >= NumEtapas)
+                    if (EtapaAct >= GenReceta.NumEtapas)
                     {
                         WriteBOOL(DB, $"{OffsetComm}.5", true); //BOOL Ultima Etapa
                     }
@@ -343,64 +341,64 @@ namespace ServicioWindows.Clases
                     {
                         case "Carga_Solidos_1":
                             Puntero = OffsetProcesoCargaSolidos1;
-                        break;
+                            break;
                         case "Carga_Solidos_2":
                             Puntero = OffsetProcesoCargaSolidos2;
-                        break;
+                            break;
                         case "Carga_Solidos_3":
                             Puntero = OffsetProcesoCargaSolidos3;
-                        break;
+                            break;
                         case "Carga_Agua_Descal":
                             Puntero = OffsetProcesoCargaAguaDescal;
-                        break;
+                            break;
                         case "Carga_Agua_Recup":
                             Puntero = OffsetProcesoCargaAguaRecup;
-                        break;
+                            break;
                         case "Carga_Antiespumante":
                             Puntero = OffsetProcesoCargaAntiespumante;
-                        break;
+                            break;
                         case "Carga_Ligno":
                             Puntero = OffsetProcesoCargaLigno;
-                        break;
+                            break;
                         case "Carga_Potasa":
                             Puntero = OffsetProcesoCargaPotasa;
-                        break;
+                            break;
                         case "Espera":
                             Puntero = OffsetProcesoEspera;
-                        break;
+                            break;
                         case "Agitacion":
                             Puntero = OffsetProcesoAgitacion;
-                        break;
+                            break;
                         case "Temperatura":
                             Puntero = OffsetProcesoTemperatura;
-                        break;
+                            break;
                         default:
-                        break;
+                            break;
                     }
-                break;
+                    break;
 
                 case "consigna":
                     Consigna = ValorConsigna;
-                    if (Tipo == "Carga_Solidos_1" || Tipo == "Carga_Solidos_2" || Tipo == "Carga_Solidos_3" || Tipo ==  "Carga_Agua_Descal" || Tipo == "Carga_Agua_Recup"
+                    if (Tipo == "Carga_Solidos_1" || Tipo == "Carga_Solidos_2" || Tipo == "Carga_Solidos_3" || Tipo == "Carga_Agua_Descal" || Tipo == "Carga_Agua_Recup"
                         || Tipo == "Carga_Antiespumante" || Tipo == "Carga_Ligno" || Tipo == "Carga_Potasa")
                     {
                         switch (ValorConsigna)
                         {
                             case "Cantidad":
                                 Offset = 2;
-                            break;
+                                break;
                             case "Velocidad_Vibracion":
                                 Offset = 6;
-                            break;
+                                break;
                         }
                     }
                     if (Tipo == "Espera")
                     {
                         switch (ValorConsigna)
-                        {                            
+                        {
                             case "Tiempo":
                                 Offset = 0;
-                            break;
+                                break;
                         }
                     }
                     if (Tipo == "Agitacion")
@@ -409,22 +407,22 @@ namespace ServicioWindows.Clases
                         {
                             case "Modo":
                                 Offset = 2;
-                            break;
+                                break;
                             case "Intermitencia":
                                 Offset = 4;
-                            break;
+                                break;
                             case "Velocidad":
                                 Offset = 6;
-                            break;
+                                break;
                             case "Temporizado":
                                 Offset = 10;
-                            break;
+                                break;
                             case "Tiempo_ON":
                                 Offset = 12;
-                            break;
+                                break;
                             case "Tiempo_OFF":
                                 Offset = 14;
-                            break;
+                                break;
                         }
                     }
                     if (Tipo == "Temperatura")
@@ -436,11 +434,11 @@ namespace ServicioWindows.Clases
                                 break;
                         }
                     }
-                break;
+                    break;
 
                 case "valor":
                     string DireccionConsignas = $"{(Puntero + Offset)}.0";
-                    
+
                     //Traspaso de consignas
                     if (Consigna == "Cantidad" || Consigna == "Velocidad" || Consigna == "Velocidad_Vibracion" || Consigna == "Temperatura")
                     {
@@ -449,13 +447,14 @@ namespace ServicioWindows.Clases
                     else if (Consigna == "Intermitencia")
                     {
                         WriteBOOL(DB, DireccionConsignas, Boolean.Parse(ValorConsigna));
-                    }else
-                    {                       
+                    }
+                    else
+                    {
                         WriteINT(DB, DireccionConsignas, Int16.Parse(ValorConsigna));
                     }
-                break;
+                    break;
 
-                case "procesoActivo":                    
+                case "procesoActivo":
                     string ProcesoCarga = $"{OffsetTipoProceso}.0";
                     string ProcesoEspera = $"{OffsetTipoProceso}.1";
                     string ProcesoActivo = $"{Puntero}.0";
@@ -482,11 +481,11 @@ namespace ServicioWindows.Clases
                         WriteBOOL(DB, ProcesoEspera, true);
                         //Console.WriteLine($"Proceso tipo: {Tipo}");
                     }
-                    
+
                     //Activacion proceso secundario agitacion
-                    if(Tipo == "Agitacion" && (ValorConsigna.ToString() == "True"))
-                    {                                                
-                        WriteBOOL(DB, $"{OffsetProcesoAgitacion.ToString()}.0", true);                                                                
+                    if (Tipo == "Agitacion" && (ValorConsigna.ToString() == "True"))
+                    {
+                        WriteBOOL(DB, $"{OffsetProcesoAgitacion.ToString()}.0", true);
                     }
                     else if (Tipo == "Agitacion" && (ValorConsigna.ToString() == "False"))
                     {
@@ -506,11 +505,11 @@ namespace ServicioWindows.Clases
 
                 case "id":
 
-                break;
+                    break;
 
                 default:
                     Console.WriteLine($"Opcion no valida. Propiedad: {NombrePropiedad}");
-                break;
+                    break;
             }
 
         }

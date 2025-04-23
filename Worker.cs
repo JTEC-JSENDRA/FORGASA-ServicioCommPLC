@@ -1,9 +1,7 @@
 using S7.Net;
 using ServicioWindows.Clases;
 using ServicioWindows.Datos;
-
-
-
+using ServicioWindows.Models;
 
 
 namespace ServicioWindows
@@ -27,12 +25,14 @@ namespace ServicioWindows
             int NumeroReactores = TotalReactores.ObtenerReactores().Count();
 
             bool[] FalloComm = new bool[NumeroPLCs];
-            bool [] StartUp = new bool[NumeroPLCs];
-            bool [] PLC_Enable = new bool[NumeroPLCs];
-            short [,] EtapaAct = new short[NumeroPLCs, NumeroReactores];
+            bool[] StartUp = new bool[NumeroPLCs];
+            bool[] PLC_Enable = new bool[NumeroPLCs];
+            short[,] EtapaAct = new short[NumeroPLCs, NumeroReactores];
             bool[,] Estado = new bool[NumeroPLCs, NumeroReactores];
+            //DatosGenReceta[,] GenReceta = new DatosGenReceta[NumeroPLCs, NumeroReactores];
 
-            Plc [] PLC = new Plc[NumeroPLCs];
+
+            Plc[] PLC = new Plc[NumeroPLCs];
             CommPLC[] commPLC = new CommPLC[NumeroPLCs];
 
             //Inicializacion de objetos y variables segun el numero de PLCs
@@ -49,7 +49,7 @@ namespace ServicioWindows
             Logs.Iniciar("Servicio iniciado");
 
             while (!stoppingToken.IsCancellationRequested)
-            {                
+            {
                 for (int i = 0; i <= (NumeroPLCs - 1); i++)
                 {
                     //Se comprueba la disponibilidad del PLC seleccionado de la lista
@@ -68,14 +68,14 @@ namespace ServicioWindows
                             {
                                 //Se comprueba el numero total de reactores que tiene receta
                                 for (int u = 0; u <= (NumeroReactores - 1); u++)
-                                {                                    
+                                {
                                     //Se seleccionan los reactores que se encuentran en el PLC seleccionado de la lista
                                     if (TotalReactores.ObtenerReactores()[u][0] == IP)
                                     {
                                         string NombreReactor = TotalReactores.ObtenerReactores()[u][1];
                                         string DB_Reactor = TotalReactores.ObtenerReactores()[u][2];
 
-                                        EtapaAct[i, u] = await commPLC[i].GestorReceta(DB_Reactor, DB_Offsets, NombreReactor, EtapaAct[i, u], RutaApi, Logs);
+                                        EtapaAct[i, u] = await commPLC[i].GestorReceta(DB_Reactor, DB_Offsets, NombreReactor, EtapaAct[i, u], RutaApi, Logs);//, GenReceta[i,u]);
                                     }
                                 }
                             }
@@ -99,8 +99,8 @@ namespace ServicioWindows
                 //Pruebas consumo API
                 #region Pruebas consumo API
 
-               
-                
+
+
                 //string NombreReceta = await DatosAPI.DatosCabecera("https://localhost:7106/api/Recetas/Crema1", "nombreReceta");
                 //string NumeroEtapas = await DatosAPI.DatosCabecera("https://localhost:7106/api/Recetas/Crema1", "numeroEtapas");
 

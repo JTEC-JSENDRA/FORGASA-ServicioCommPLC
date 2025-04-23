@@ -6,10 +6,10 @@ namespace ServicioWindows.Clases
     internal class Utiles
     {
         #region Revisables
-        public string GenerarFecha(Plc PLC, string[] Direccion,short PosicionInicioFecha,int ElementosFecha)
+        public string GenerarFecha(Plc PLC, string[] Direccion, short PosicionInicioFecha, int ElementosFecha)
         {
             string FechaString;
-            string [] FechaArray = new string[ElementosFecha];
+            string[] FechaArray = new string[ElementosFecha];
 
             for (int i = 0; i < ElementosFecha; i++)
             {
@@ -46,7 +46,7 @@ namespace ServicioWindows.Clases
                 Directory.CreateDirectory(rutaLogs);
             }
             if (!Directory.Exists(rutaBBDD))
-            { 
+            {
 
                 Directory.CreateDirectory(rutaBBDD);
             }
@@ -72,7 +72,7 @@ namespace ServicioWindows.Clases
                     {
                         Logs.RegistrarInfo($"Automata con IP:{IP} Disponible!");
                     }
-                    
+
                     return true;
                 }
                 else
@@ -81,7 +81,7 @@ namespace ServicioWindows.Clases
                     {
                         Logs.RegistrarError($"Automata con IP: {IP} NO Disponible!");
                     }
-                    
+
                     return false;
                 }
             }
