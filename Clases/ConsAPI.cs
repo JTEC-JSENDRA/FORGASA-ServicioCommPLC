@@ -1,5 +1,8 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using S7.Net;
+using ServicioWindows.Models;
+using System.Text;
 
 namespace ServicioWindows.Clases
 {
@@ -16,23 +19,14 @@ namespace ServicioWindows.Clases
             string Valor = null;
 
             HttpClient httpClient = new HttpClient();
-            //Console.WriteLine($"{apiUrl}");
             HttpResponseMessage response = await httpClient.GetAsync(apiUrl);
 
             if (response.IsSuccessStatusCode)
             {
                 string responseBody = await response.Content.ReadAsStringAsync();
-                //Console.WriteLine($"ResponseBody = {responseBody}");
-
                 JArray jsonArray = JArray.Parse(responseBody);
-                //Console.WriteLine($"JsonArray = {jsonArray}");
-
                 JObject Objeto = (JObject)jsonArray[0][0];
-                //Console.WriteLine($"Objeto = {Objeto}");
-
                 Valor = Objeto.Value<string>(Dato);
-                //Console.WriteLine($"Valor =  {Valor}");
-
             }
             else
             {
@@ -55,13 +49,9 @@ namespace ServicioWindows.Clases
             if (response.IsSuccessStatusCode)
             {
                 string responseBody = await response.Content.ReadAsStringAsync();
-
                 JArray jsonArray = JArray.Parse(responseBody);
-
                 JObject Objeto = (JObject)jsonArray[Etapa][0][0];
                 Valor = Objeto.Value<string>(Dato);
-
-                //Console.WriteLine(Valor);
 
             }
             else
@@ -90,38 +80,31 @@ namespace ServicioWindows.Clases
                 int NumeroConsignas;
 
                 string responseBody = await response.Content.ReadAsStringAsync();
-                //Console.WriteLine($"Response body de datos etapas para la db {DB}: {responseBody}");
+
                 //Si el jarray tiene varias recetas te cuenta todas las etapas contadas asi
                 JArray jsonArray = JArray.Parse(responseBody);
                 NumeroEtapas = (jsonArray.Count) - 1;
 
-                //Console.WriteLine($"Numero de etapas: {NumeroEtapas}");
                 JArray Etapa = (JArray)jsonArray[NEtapa];
 
                 NumeroProcesos = (Etapa.Count) - 1;
-                //Console.WriteLine($"Numero de procesos en la etapa {NEtapa}: {NumeroProcesos}");
 
                 for (int i = 1; i <= (NumeroProcesos); i++)
                 {
                     JArray Proceso = (JArray)jsonArray[NEtapa][i];
-                    //Console.WriteLine($"Proceso: {Proceso}");
 
                     NumeroConsignas = (Proceso.Count());
-                    //Console.WriteLine($"Numero de Consignas en el proceso {i}: {NumeroConsignas}");
 
                     for (int u = 0; u <= (NumeroConsignas - 1); u++)
                     {
                         JObject ProcesoObj = (JObject)jsonArray[NEtapa][i][u];
-                        //Console.WriteLine($"ProcesoObj: {ProcesoObj}");
 
                         foreach (JProperty property in ProcesoObj.Properties())
                         {
                             string propertyName = property.Name;
                             string propertyValue = property.Value.ToString();
 
-                            //Console.WriteLine($"Pre fallo opcion no valida");
                             commPLC.CargaDatosReceta(DB, DB_Offsets, propertyName, propertyValue);
-                            //Console.WriteLine($"Nombre y valor de la propiedad: {propertyName} - {propertyValue}");
                         }
                     }
                 }
@@ -134,6 +117,25 @@ namespace ServicioWindows.Clases
             }
 
             return Valor;
+        }
+
+        public async Task ActualizarEtapaAPI(DatosGenReceta GenReceta, int EtapaAct, Logs Logs)
+        {
+            using (HttpClient httpClient = new HttpClient())
+            {
+                var data = new
+                {
+                    OF = GenReceta.OF,
+                    nombreEtapa = GenReceta.NombreEtapaActual,
+                    numeroEtapa = $"{EtapaAct}/{GenReceta.NumEtapas}"
+                };
+
+                var json = JsonConvert.SerializeObject(data);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                string RutaApiAct = "http://localhost:7248/api/Worker/ActualizarOF";
+
+                HttpResponseMessage response = await httpClient.PostAsync(RutaApiAct, content);
+            }
         }
     }
 }

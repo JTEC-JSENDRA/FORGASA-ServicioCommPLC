@@ -1,6 +1,8 @@
 ﻿using S7.Net;
 using System.Text;
 using ServicioWindows.Models;
+using Newtonsoft.Json;
+using System;
 
 namespace ServicioWindows.Clases
 {
@@ -47,9 +49,6 @@ namespace ServicioWindows.Clases
 
             // Se Obtiene la logitud de la variable declarada en el PLC
             int LongStringPLC = (byte)PLC.Read(DataType.DataBlock, DB, (Offset), VarType.Byte, 1);
-
-            //Console.WriteLine($"Long variable destino: {LongStringPLC}");
-            //Console.WriteLine($"Long variable origen: {LongString}");
 
             // Se comprueba que la variable que se quiere escribir, cabe dentro de la variable de destino
             if (LongString <= LongStringPLC)
@@ -188,7 +187,7 @@ namespace ServicioWindows.Clases
             string OffsetNombreEtapa = (OffsetReceta + 140).ToString(); //258.0
             string OffsetComm = (OffsetReceta + 172).ToString(); //290.0
             string OffsetCheckRecetaFin = (OffsetReceta + (LongUDT - 2)).ToString(); //464.0
-
+            string OffsetActivarScada = (466).ToString();
 
             //Datos generales de la receta
             EtapaAct = ReadINT(DB, $"{OffsetEtapaAct}.0");
@@ -248,34 +247,31 @@ namespace ServicioWindows.Clases
                             //Console.WriteLine($"OF en reactor {NombreReactor} = {OF}");
                             if (GenReceta.OF == null)
                             {
-                                WriteBOOL(DB, $"{OffsetComm}.0", true);
+                                WriteBOOL(DB, $"{OffsetActivarScada}.0", true);
                                 Console.WriteLine($"Receta iniciada en reactor {NombreReactor}");
                             }
                         }
                     }
                 }
 
-
                 if (InicioReceta && !InicioCargado)
                 {
-                    EtapaAct = 0;
-                    //Console.WriteLine("1");
-                    GenReceta.OF = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "ordenFabricacion")));
-                    GenReceta.NombreReceta = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "nombreReceta")));
-                    GenReceta.NumEtapas = Int16.Parse(await (DatosAPI.DatosCabecera(RutaConsumoAPI, "numeroEtapas")));
-                    GenReceta.NombreEtapa = await (DatosAPI.DatosCabeceraEtapa(RutaConsumoAPI, "nombre", EtapaAct + 1));
-                    //Console.WriteLine("2");
+                EtapaAct = 0;
+                GenReceta.OF = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "ordenFabricacion")));
+                GenReceta.NombreReceta = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "nombreReceta")));
+                GenReceta.NumEtapas = Int16.Parse(await (DatosAPI.DatosCabecera(RutaConsumoAPI, "numeroEtapas")));
+                GenReceta.NombreEtapaSiguiente = await (DatosAPI.DatosCabeceraEtapa(RutaConsumoAPI, "nombre", EtapaAct + 1));
 
-                    //Se cargan los datos de la primera etapa
-                    WriteSTRING(DB, $"{OffsetOF}.0", GenReceta.OF, Logs);
-                    WriteSTRING(DB, $"{OffsetNombreReceta}.0", GenReceta.NombreReceta, Logs);
-                    WriteINT(DB, $"{OffsetNumEtapas}.0", GenReceta.NumEtapas);
-                    WriteSTRING(DB, $"{OffsetNombreEtapa}.0", GenReceta.NombreEtapa, Logs);
+                //Se cargan los datos de la primera etapa
+                WriteSTRING(DB, $"{OffsetOF}.0", GenReceta.OF, Logs);
+                WriteSTRING(DB, $"{OffsetNombreReceta}.0", GenReceta.NombreReceta, Logs);
+                WriteINT(DB, $"{OffsetNumEtapas}.0", GenReceta.NumEtapas);
+                WriteSTRING(DB, $"{OffsetNombreEtapa}.0", GenReceta.NombreEtapaSiguiente, Logs);
 
-                    await DatosAPI.DatosEtapas(DB, DB_Offsets, RutaConsumoAPI, EtapaAct + 1);
+                await DatosAPI.DatosEtapas(DB, DB_Offsets, RutaConsumoAPI, EtapaAct + 1);
 
-                    WriteBOOL(DB, $"{OffsetComm}.3", true); //BOOL Inicio Cargado
-                    Logs.RegistrarInfo($"Inicio de la receta en el reactor: {NombreReactor}");
+                WriteBOOL(DB, $"{OffsetComm}.3", true); //BOOL Inicio Cargado
+                Logs.RegistrarInfo($"Inicio de la receta en el reactor: {NombreReactor}");
 
                 }
 
@@ -283,6 +279,8 @@ namespace ServicioWindows.Clases
                 {
                     EtapaAct++;
                     GenReceta.NumEtapas = ReadINT(DB, $"{OffsetNumEtapas}.0");
+                    GenReceta.OF = ReadSTRING(DB, $"{OffsetOF}");
+                    GenReceta.NombreEtapaActual = ReadSTRING(DB, $"{OffsetNombreEtapa}");
 
                     WriteBOOL(DB, $"{OffsetComm}.3", true);
                     WriteINT(DB, $"{OffsetEtapaAct}.0", EtapaAct);
@@ -295,13 +293,16 @@ namespace ServicioWindows.Clases
                     }
                     else
                     {
-                        GenReceta.NombreEtapa = await (DatosAPI.DatosCabeceraEtapa(RutaConsumoAPI, "nombre", EtapaAct));
-                        WriteSTRING(DB, $"{OffsetNombreEtapa}.0", GenReceta.NombreEtapa, Logs);
+                        GenReceta.NombreEtapaSiguiente = await (DatosAPI.DatosCabeceraEtapa(RutaConsumoAPI, "nombre", EtapaAct));
+                        WriteSTRING(DB, $"{OffsetNombreEtapa}.0", GenReceta.NombreEtapaSiguiente, Logs);
                         //Se cargan los datos de la siguiente etapa
                         await DatosAPI.DatosEtapas(DB, DB_Offsets, RutaConsumoAPI, EtapaAct + 1);
-
                     }
+                    
                     WriteBOOL(DB, $"{OffsetComm}.4", true);
+                    DatosAPI.ActualizarEtapaAPI(GenReceta, EtapaAct, Logs);
+                    //Logs.RegistrarInfo($"Etapa Actual fuera del if Ultima etapa: {EtapaAct}");
+
                 }
 
                 if (SiguienteEtapaRecibida && !UltimaEtapa)
@@ -461,10 +462,6 @@ namespace ServicioWindows.Clases
 
                     //Resets de todos los procesos
                     WriteBOOL(DB, $"{ProcesoActivo.ToString()}", false);
-                    //WriteBOOL(DB, $"{OffsetProcesoAgitacion.ToString()}.0", false);
-                    //WriteBOOL(DB, $"{OffsetProcesoTemperatura.ToString()}.0", false);
-
-                    //Console.WriteLine($"Valor de tipo {Tipo} y consigna de procesoActivo = {ValorConsigna}");
 
                     //Activaciones de procesos
                     if ((Tipo == "Carga_Solidos_1" || Tipo == "Carga_Solidos_2" || Tipo == "Carga_Solidos_3" || Tipo == "Carga_Agua_Descal" || Tipo == "Carga_Agua_Recup"
@@ -473,13 +470,11 @@ namespace ServicioWindows.Clases
                         WriteBOOL(DB, ProcesoCarga, true);
                         WriteBOOL(DB, ProcesoEspera, false);
                         WriteBOOL(DB, $"{ProcesoActivo.ToString()}", true);
-                        //Console.WriteLine($"Proceso activo: {ProcesoActivo}");
                     }
                     else if ((Tipo == "Espera") && (ValorConsigna.ToString() == "True"))
                     {
                         WriteBOOL(DB, ProcesoCarga, false);
                         WriteBOOL(DB, ProcesoEspera, true);
-                        //Console.WriteLine($"Proceso tipo: {Tipo}");
                     }
 
                     //Activacion proceso secundario agitacion

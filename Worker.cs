@@ -95,25 +95,6 @@ namespace ServicioWindows
 
                 }
 
-
-                //Pruebas consumo API
-                #region Pruebas consumo API
-
-
-
-                //string NombreReceta = await DatosAPI.DatosCabecera("https://localhost:7106/api/Recetas/Crema1", "nombreReceta");
-                //string NumeroEtapas = await DatosAPI.DatosCabecera("https://localhost:7106/api/Recetas/Crema1", "numeroEtapas");
-
-                //Console.WriteLine($"El nombre de la receta es: {NombreReceta}");
-                //Console.WriteLine($"El numero de etapas son: {NumeroEtapas}");
-
-
-
-
-                #endregion
-
-
-
                 await Task.Delay(TiempoCicloServicio, stoppingToken);
             }
         }

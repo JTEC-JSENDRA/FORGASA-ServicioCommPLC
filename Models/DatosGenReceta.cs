@@ -8,7 +8,9 @@
 
         public string? NombreReceta { get; set; }
 
-        public string? NombreEtapa { get; set; }
+        public string? NombreEtapaSiguiente { get; set; }
+
+        public string? NombreEtapaActual { get; set; }
 
     }
 }
