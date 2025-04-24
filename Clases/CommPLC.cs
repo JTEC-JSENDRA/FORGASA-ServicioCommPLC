@@ -187,11 +187,13 @@ namespace ServicioWindows.Clases
             string OffsetNombreEtapa = (OffsetReceta + 140).ToString(); //258.0
             string OffsetComm = (OffsetReceta + 172).ToString(); //290.0
             string OffsetCheckRecetaFin = (OffsetReceta + (LongUDT - 2)).ToString(); //464.0
-            string OffsetActivarScada = (466).ToString();
+            string OffsetAccionScada = (466).ToString();            
 
             //Datos generales de la receta
             EtapaAct = ReadINT(DB, $"{OffsetEtapaAct}.0");
+            string NomEtapaAct = ReadSTRING(DB, $"{OffsetNombreEtapa}");
             string RutaConsumoAPI = $"{RutaApi}{NombreReactor}";
+            string estadoFinalizada;
 
             //Bits de comunicacion del gestor de recetas del PLC con el gestor de recetas del servicio
             bool InicioReceta = ReadBOOL(DB, $"{OffsetComm}.0"); //290.0
@@ -247,7 +249,7 @@ namespace ServicioWindows.Clases
                             //Console.WriteLine($"OF en reactor {NombreReactor} = {OF}");
                             if (GenReceta.OF == null)
                             {
-                                WriteBOOL(DB, $"{OffsetActivarScada}.0", true);
+                                WriteBOOL(DB, $"{OffsetAccionScada}.0", true);
                                 Console.WriteLine($"Receta iniciada en reactor {NombreReactor}");
                             }
                         }
@@ -256,35 +258,31 @@ namespace ServicioWindows.Clases
 
                 if (InicioReceta && !InicioCargado)
                 {
-                EtapaAct = 0;
-                GenReceta.OF = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "ordenFabricacion")));
-                GenReceta.NombreReceta = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "nombreReceta")));
-                GenReceta.NumEtapas = Int16.Parse(await (DatosAPI.DatosCabecera(RutaConsumoAPI, "numeroEtapas")));
-                GenReceta.NombreEtapaSiguiente = await (DatosAPI.DatosCabeceraEtapa(RutaConsumoAPI, "nombre", EtapaAct + 1));
+                    EtapaAct = 0;
+                    GenReceta.OF = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "ordenFabricacion")));
+                    GenReceta.NombreReceta = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "nombreReceta")));
+                    GenReceta.NumEtapas = Int16.Parse(await (DatosAPI.DatosCabecera(RutaConsumoAPI, "numeroEtapas")));
+                    GenReceta.NombreEtapaSiguiente = await (DatosAPI.DatosCabeceraEtapa(RutaConsumoAPI, "nombre", EtapaAct + 1));
 
-                //Se cargan los datos de la primera etapa
-                WriteSTRING(DB, $"{OffsetOF}.0", GenReceta.OF, Logs);
-                WriteSTRING(DB, $"{OffsetNombreReceta}.0", GenReceta.NombreReceta, Logs);
-                WriteINT(DB, $"{OffsetNumEtapas}.0", GenReceta.NumEtapas);
-                WriteSTRING(DB, $"{OffsetNombreEtapa}.0", GenReceta.NombreEtapaSiguiente, Logs);
+                    //Se cargan los datos de la primera etapa
+                    WriteSTRING(DB, $"{OffsetOF}.0", GenReceta.OF, Logs);
+                    WriteSTRING(DB, $"{OffsetNombreReceta}.0", GenReceta.NombreReceta, Logs);
+                    WriteINT(DB, $"{OffsetNumEtapas}.0", GenReceta.NumEtapas);
+                    WriteSTRING(DB, $"{OffsetNombreEtapa}.0", GenReceta.NombreEtapaSiguiente, Logs);
 
-                await DatosAPI.DatosEtapas(DB, DB_Offsets, RutaConsumoAPI, EtapaAct + 1);
+                    await DatosAPI.DatosEtapas(DB, DB_Offsets, RutaConsumoAPI, EtapaAct + 1);
 
-                WriteBOOL(DB, $"{OffsetComm}.3", true); //BOOL Inicio Cargado
-                Logs.RegistrarInfo($"Inicio de la receta en el reactor: {NombreReactor}");
+                    WriteBOOL(DB, $"{OffsetComm}.3", true); //BOOL Inicio Cargado
+                    Logs.RegistrarInfo($"Inicio de la receta en el reactor: {NombreReactor}");
 
                 }
 
                 if (EtapaActualCargada && !InicioEtapa)
                 {
                     EtapaAct++;
-                    GenReceta.NumEtapas = ReadINT(DB, $"{OffsetNumEtapas}.0");
-                    GenReceta.OF = ReadSTRING(DB, $"{OffsetOF}");
-                    GenReceta.NombreEtapaActual = ReadSTRING(DB, $"{OffsetNombreEtapa}");
-
+                    
                     WriteBOOL(DB, $"{OffsetComm}.3", true);
                     WriteINT(DB, $"{OffsetEtapaAct}.0", EtapaAct);
-
 
                     if (EtapaAct >= GenReceta.NumEtapas)
                     {
@@ -298,7 +296,11 @@ namespace ServicioWindows.Clases
                         //Se cargan los datos de la siguiente etapa
                         await DatosAPI.DatosEtapas(DB, DB_Offsets, RutaConsumoAPI, EtapaAct + 1);
                     }
-                    
+
+                    GenReceta.NumEtapas = ReadINT(DB, $"{OffsetNumEtapas}.0");
+                    GenReceta.OF = ReadSTRING(DB, $"{OffsetOF}");
+                    GenReceta.NombreEtapaActual = ReadSTRING(DB, $"{OffsetNombreEtapa}");
+
                     WriteBOOL(DB, $"{OffsetComm}.4", true);
                     DatosAPI.ActualizarEtapaAPI(GenReceta, EtapaAct, Logs);
                     //Logs.RegistrarInfo($"Etapa Actual fuera del if Ultima etapa: {EtapaAct}");
@@ -313,6 +315,21 @@ namespace ServicioWindows.Clases
                     {
                         WriteBOOL(DB, $"{OffsetComm}.5", true); //BOOL Ultima Etapa
                     }
+                }
+
+                if ((NomEtapaAct == "Receta Finalizada") || (NomEtapaAct == "Receta Abortada"))
+                {
+                    if (NomEtapaAct == "Receta Finalizada")
+                    {
+                        estadoFinalizada = "Finalizada";
+                    }
+                    else
+                    {
+                        estadoFinalizada = "Abortada";
+                    }
+                    GenReceta.OF = ReadSTRING(DB, $"{OffsetOF}");
+                    DatosAPI.FinalizarOFAPI(GenReceta.OF, estadoFinalizada, Logs);
+                    WriteBOOL(DB, $"{OffsetAccionScada}.4", true); //BOOL Vaciar datos
                 }
             }
             return EtapaAct;

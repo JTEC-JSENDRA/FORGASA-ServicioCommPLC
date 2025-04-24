@@ -137,5 +137,32 @@ namespace ServicioWindows.Clases
                 HttpResponseMessage response = await httpClient.PostAsync(RutaApiAct, content);
             }
         }
+
+        public async Task FinalizarOFAPI(string OF, string estado, Logs Logs)
+        {            
+            using (HttpClient httpClient = new HttpClient())
+            {
+                var data = new 
+                { 
+                    OF = OF, 
+                    estado = estado
+                };
+                var json = JsonConvert.SerializeObject(data);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                string RutaApiFin = "http://localhost:7248/api/Worker/FinalizarOF";
+                HttpResponseMessage response = await httpClient.PostAsync(RutaApiFin, content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    Logs.RegistrarInfo($"✅ Orden de fabricación finalizada correctamente: {OF}");
+                }
+                else
+                {
+                    string errorContent = await response.Content.ReadAsStringAsync();
+                    Logs.RegistrarError($"❌ Error al finalizar OF: {response.StatusCode} - {errorContent}");
+                }
+            }
+        }
     }
 }
