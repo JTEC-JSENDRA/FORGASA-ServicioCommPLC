@@ -284,6 +284,10 @@ namespace ServicioWindows.Clases
                     WriteBOOL(DB, $"{OffsetComm}.3", true);
                     WriteINT(DB, $"{OffsetEtapaAct}.0", EtapaAct);
 
+                    GenReceta.NumEtapas = ReadINT(DB, $"{OffsetNumEtapas}.0");
+                    GenReceta.OF = ReadSTRING(DB, $"{OffsetOF}");
+                    GenReceta.NombreEtapaActual = ReadSTRING(DB, $"{OffsetNombreEtapa}");
+
                     if (EtapaAct >= GenReceta.NumEtapas)
                     {
                         WriteBOOL(DB, $"{OffsetComm}.5", true); //BOOL Ultima Etapa
@@ -296,10 +300,6 @@ namespace ServicioWindows.Clases
                         //Se cargan los datos de la siguiente etapa
                         await DatosAPI.DatosEtapas(DB, DB_Offsets, RutaConsumoAPI, EtapaAct + 1);
                     }
-
-                    GenReceta.NumEtapas = ReadINT(DB, $"{OffsetNumEtapas}.0");
-                    GenReceta.OF = ReadSTRING(DB, $"{OffsetOF}");
-                    GenReceta.NombreEtapaActual = ReadSTRING(DB, $"{OffsetNombreEtapa}");
 
                     WriteBOOL(DB, $"{OffsetComm}.4", true);
                     DatosAPI.ActualizarEtapaAPI(GenReceta, EtapaAct, Logs);
