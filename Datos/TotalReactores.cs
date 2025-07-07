@@ -31,7 +31,6 @@ namespace ServicioWindows.Datos
             Reactores.Add(IM01);
             Reactores.Add(IM02);
 
-
         }
 
         public List<string[]> ObtenerReactores()
