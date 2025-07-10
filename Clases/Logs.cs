@@ -3,12 +3,16 @@ namespace ServicioWindows.Clases
 {
     internal class Logs
     {
-
         private readonly string Ruta;
+
+        // ---------------------------------------------------------------------------------------------------------------------------
+
         public Logs(string Ruta)
         {
             this.Ruta = Ruta;
         }
+
+        // ---------------------------------------------------------------------------------------------------------------------------
 
         public void Iniciar(string Txt)
         {
@@ -28,6 +32,8 @@ namespace ServicioWindows.Clases
             Console.ResetColor();
         }
 
+        // ---------------------------------------------------------------------------------------------------------------------------
+
         public void RegistrarInfo(string Txt)
         {
             string Message = $"{DateTimeOffset.Now}: Info - {Txt}\n\n";
@@ -36,6 +42,9 @@ namespace ServicioWindows.Clases
             Console.WriteLine(Message);
             Console.ResetColor();
         }
+
+        // ---------------------------------------------------------------------------------------------------------------------------
+
         public void RegistrarError(string Txt)
         {
             string Message = $"{DateTimeOffset.Now}: Error - {Txt}\n\n";
@@ -44,5 +53,7 @@ namespace ServicioWindows.Clases
             Console.WriteLine(Message);
             Console.ResetColor();
         }
+
+        // ---------------------------------------------------------------------------------------------------------------------------
     }
 }

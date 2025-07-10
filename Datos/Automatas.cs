@@ -1,21 +1,28 @@
 ﻿
+// Se define el espacio de nombres donde está contenida la clase Automatas
 namespace ServicioWindows.Datos
 {
+    // Se declara la clase Automatas, que contiene una lista de direcciones IP de PLCs (controladores lógicos programables)
     public class Automatas
     {
+        // Lista privada que almacenará las direcciones IP de los PLCs de la planta
         private List<string> PLCs;
 
+        // Constructor de la clase Automatas
         public Automatas()
         {
+            // Se inicializa la lista de PLCs
             PLCs = new List<string>();
 
-            //Aqui se agregan los PLCs de la planta
-            //PLCs.Add("192.168.8.1");//PLC_Electrolito
-            PLCs.Add("10.10.40.30");
-            //PLCs.Add("192.168.24.1");//PLC_Sales
+            // Aquí se agregan manualmente las direcciones IP de los PLCs que se van a utilizar en la planta
+            // Puedes descomentar o agregar más líneas según los PLCs disponibles
+
+            //PLCs.Add("192.168.8.1");      // Ejemplo: PLC de la zona de electrolito
+            PLCs.Add("10.10.40.30");        // PLC activo actual
+            //PLCs.Add("192.168.24.1");     // Ejemplo: PLC de la zona de sales
 
         }
-
+        // Método público que permite obtener la lista de direcciones IP de los PLCs registrados
         public List<string> ObtenerPLCs()
         {
             return PLCs;

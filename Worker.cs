@@ -6,6 +6,8 @@ using System.Text.Json;
 
 namespace ServicioWindows
 {
+    // ---------------------------------------------------------------------------------------------------------------------------
+
     public class DatosMMPP
     {
         public string OF { get; set; }
@@ -19,24 +21,40 @@ namespace ServicioWindows
         public float Potasa { get; set; }
     }
 
+    // ---------------------------------------------------------------------------------------------------------------------------
+
     public class Worker : BackgroundService, IDisposable
     {
+        // Objeto para manejar la conexión y operaciones con la base de datos SQL Server
         private readonly SQLServerManager bbdd;
+        // Tiempo en milisegundos que el servicio esperará entre cada ciclo de trabajo (2 segundos)
         private readonly int TiempoCicloServicio = 2000;
+
+        // Fecha y hora de la última vez que se leyó información de MMPP (materias primas), inicializado con el valor mínimo posible
         private DateTime ultimaEjecucionLecturaMMPP = DateTime.MinValue;
+        // Tiempo que debe pasar entre cada lectura de MMPP (45 segundos)
         private readonly TimeSpan intervaloLecturaMMPP = TimeSpan.FromSeconds(45);
+
+        // Instancia para manejar datos de autómatas (equipos automáticos)
         private readonly Automatas datos = new Automatas();
+        // Instancia que maneja la información total de reactores
         private readonly TotalReactores TotalReactores = new TotalReactores();
+        // Objeto con funciones y métodos auxiliares (herramientas útiles)
         private readonly Utiles utiles = new Utiles();
+        // Objeto para registrar eventos y mensajes importantes (logs)
         private readonly Logs logs;
 
+        // Fecha y hora de la última vez que se leyó información del sistema SAP, iniciada con el valor mínimo posible
         private DateTime ultimaEjecucionLecturaSAP = DateTime.MinValue;
+        // Tiempo que debe pasar entre cada lectura de SAP (4 horas)
         private readonly TimeSpan intervaloLecturaSAP = TimeSpan.FromMinutes(240);
 
-        //private DateTime ultimaEjecucionLecturaFront = DateTime.MinValue;
-        //private TimeSpan intervaloLecturaFront = TimeSpan.FromSeconds(60);
-
+        // Cliente HTTP para hacer peticiones web, se usa para conectarse a servicios externos
         private static readonly HttpClient client = new HttpClient();
+
+        // ---------------------------------------------------------------------------------------------------------------------------
+
+        // Método privado que configura y devuelve una conexión a la base de datos SQL Server
 
         private SQLServerManager BBDD_Config()
         {
@@ -50,119 +68,135 @@ namespace ServicioWindows
             return new SQLServerManager(connectionString );
         }
 
+        // ---------------------------------------------------------------------------------------------------------------------------
+
+        // Constructor de la clase Worker, se ejecuta cuando se crea un nuevo objeto Worker
+
         public Worker()
         {
+            // Inicializa la base de datos llamando al método BBDD_Config()
             bbdd = BBDD_Config();
+            // Define la ruta del archivo donde se guardarán los logs
             string RutaLog = @"C:\Informes\Logs.txt";
+            // Crea un nuevo objeto logs para manejar los registros, usando la ruta especificada
             logs = new Logs(RutaLog);
+            // Escribe en el log que el servicio se ha iniciado
             logs.Iniciar("Servicio iniciado");
         }
 
+        // ---------------------------------------------------------------------------------------------------------------------------
+
+        // 1. Se conecta a los PLCs y reactores para gestionar y monitorear automáticamente las recetas.
+        // 2. Cada 45 segundos, actualiza en la base de datos los datos reales de materias primas (MMPP).
+        // 3. Cada 4 horas, se conecta con el sistema SAP para obtener órdenes liberadas.
+
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            // Obtener la cantidad de PLCs configurados
             int NumeroPLCs = datos.ObtenerPLCs().Count();
 
+            // Crear objeto para obtener información de reactores y contar cuántos hay
             TotalReactores totalReactores = new TotalReactores();
             int NumeroReactores = totalReactores.ObtenerReactores().Count();
 
-            //int NumeroReactores = TotalReactores.ObtenerReactores().Count();
-
-            //Console.WriteLine("Numero total de reactores: " + NumeroReactores);
-
+            // Crear arreglos para manejar el estado de comunicación, inicio y habilitación de cada PLC
             bool[] FalloComm = new bool[NumeroPLCs];
             bool[] StartUp = new bool[NumeroPLCs];
             bool[] PLC_Enable = new bool[NumeroPLCs];
+
+            // Matriz para guardar la etapa activa de cada PLC y reactor
             short[,] EtapaAct = new short[NumeroPLCs, NumeroReactores];
 
+            // Crear arreglos para manejar objetos PLC y su comunicación
             Plc[] PLC = new Plc[NumeroPLCs];
             CommPLC[] commPLC = new CommPLC[NumeroPLCs];
 
-            //// Inicialización PLCs
+            // Inicializar los PLCs con su IP y otros datos, además inicializar variables de estado
             for (int i = 0; i < NumeroPLCs; i++)
             {
                 string IP = datos.ObtenerPLCs()[i];
-                PLC[i] = new Plc(CpuType.S71500, IP, 0, 1);
-                commPLC[i] = new CommPLC(PLC[i]);
-                StartUp[i] = false;
-                FalloComm[i] = false;
-                PLC_Enable[i] = true;
-
+                PLC[i] = new Plc(CpuType.S71500, IP, 0, 1);     // Crear objeto PLC
+                commPLC[i] = new CommPLC(PLC[i]);               // Crear objeto de comunicación para el PLC
+                StartUp[i] = false;                             // Marcar que el PLC aún no ha iniciado
+                FalloComm[i] = false;                           // No hay fallo de comunicación inicialmente
+                PLC_Enable[i] = true;                           // PLC habilitado inicialmente
             }
 
-            string DB_Offsets = "7999";
+            string DB_Offsets = "7999";                         // Parámetro fijo usado en llamadas (offset en DB)
             string RutaApi = "http://localhost:7248/api/Worker/AlgunaLanzada/";
             string RutaApiSAP = "http://localhost:7248/api/Liberadas/SAP/FO01";
             //string RutaApiSAP_Front = "http://localhost:7248/api/Liberadas/FO01";
 
+            // Bucle principal que se ejecuta hasta que se solicite detener el servicio
             while (!stoppingToken.IsCancellationRequested) 
             {
+                // Recorrer todos los PLCs para verificar comunicación y actualizar estados
                 for (int i = 0; i < NumeroPLCs; i++)
                 {
                     string IP = datos.ObtenerPLCs()[i];
+
+                    // Verificar si el PLC está disponible (encendido y accesible)
                     PLC_Enable[i] = utiles.DisponibilidadPLC(logs, IP, PLC_Enable[i]);
 
                     if (PLC_Enable[i])
                     {
+                        // Intentar iniciar conexión si no estaba conectada
                         StartUp[i] = commPLC[i].InicioConexion(logs, StartUp[i]);
+                        // Verificar si hay fallo de comunicación
                         FalloComm[i] = commPLC[i].FalloCom(logs, FalloComm[i]);
 
-                        //Console.WriteLine($"[Debug] -- NUMERO REACTORES: {NumeroReactores}");
-
+                        // Si la conexión con el PLC está activa
                         if (PLC[i].IsConnected)
                         {
                             try
                             {
+                                // Para cada reactor asociado a este PLC
                                 for (int u = 0; u < NumeroReactores; u++)
                                 {
+                                    // Verificar si el reactor está conectado al PLC por IP
                                     if (TotalReactores.ObtenerReactores()[u][0] == IP)
                                     {
-
-                                        //string NombreReactor = TotalReactores.ObtenerReactores()[u][1];
-                                        //string DB_Reactor = TotalReactores.ObtenerReactores()[u][2];
-
                                         string NombreReactor = totalReactores.ObtenerReactores()[u][1];
                                         string DB_Reactor = totalReactores.ObtenerReactores()[u][2];
 
-                                        //Console.WriteLine($"[Debug] -- Nombre y DB Reactor: {NombreReactor} & {DB_Reactor}");
+                                        // Actualizar la etapa activa del reactor consultando el PLC
                                         EtapaAct[i, u] = await commPLC[i].GestorReceta(DB_Reactor, DB_Offsets, NombreReactor, EtapaAct[i, u], RutaApi, logs);
-
                                     }
                                 }
                             }
                             catch (Exception e)
                             {
+                                // Mostrar error por consola
                                 Console.WriteLine(e);
+                                // Marcar fallo de comunicación y continuar con siguiente PLC
                                 FalloComm[i] = commPLC[i].FalloCom(logs, FalloComm[i], StartUp[i], true);
                                 continue;
                             }
                         }
                         else
                         {
+                            // Si no está conectado, marcar fallo de comunicación
                             FalloComm[i] = commPLC[i].FalloCom(logs, FalloComm[i], StartUp[i], true);
                         }
                     }
                 }
-
-
-                // Cada 300 segundos (5 min) hacemos la lectura y actualización
+                // Cada 45 segundos (intervaloLecturaMMPP) actualizar datos de materias primas (MMPP)
                 if (DateTime.Now - ultimaEjecucionLecturaMMPP >= intervaloLecturaMMPP)
                 {
                     ultimaEjecucionLecturaMMPP = DateTime.Now;
 
                     try
                     {
-                        // poner DB's cuando esten configurados
+                        // Bases de datos para materias primas
                         string[] DBs = {"8500","8501","8502","8503" ,"8504"};
 
                         for (int index = 0; index < DBs.Length; index++)
                         {
-
                             string db = DBs[index];
-                            //Console.WriteLine($"[Debug -> CD_MMPP]-> {db}");
+                            // Obtener datos reales desde PLC (materias primas)
                             string resultado = await commPLC[0].CargaDatosRealesMMPP(db);
 
-                            
-
+                            // Mapear DB a nombre de destino
                             string destino = db switch
                             {
                                 "8500" => "RC01",
@@ -173,12 +207,12 @@ namespace ServicioWindows
                                 _ => "Desconocido"
                             };
 
+                            // Convertir el resultado JSON a objeto DatosMMPP
                             DatosMMPP datos = JsonSerializer.Deserialize<DatosMMPP>(resultado);
-
-                            //SQLServerManager BBDD = BBDD_Config();
 
                             if (datos != null)
                             {
+                                // Actualizar la orden de fabricación y cantidades en la base de datos
                                 await bbdd.ActualizarOrdenFabricacionMMPP( destino, datos.OF);
                                 await bbdd.ActualizaCantidadMMPP(destino, datos.Solido_1, datos.Solido_2, datos.Solido_3,
                                                                  datos.Agua, datos.AguaRecu, datos.Antiespumante,
@@ -193,14 +227,13 @@ namespace ServicioWindows
                         Console.WriteLine($"⚠️ Error en CargaDatosRealesMMPP: {ex.Message}");
                     }
                 }
-
-                // Cada 240 minutos (4 h) hacemos la lectura y actualización
+                // Cada 4 horas (intervaloLecturaSAP) hacer lectura y actualización con SAP
                 if (DateTime.Now - ultimaEjecucionLecturaSAP >= intervaloLecturaSAP)
                 {
                     ultimaEjecucionLecturaSAP = DateTime.Now;
-
                     try
                     {
+                        // Llamar a la API para obtener datos de SAP
                         HttpResponseMessage response = await client.GetAsync(RutaApiSAP);
 
                         if (response.IsSuccessStatusCode)
@@ -218,17 +251,23 @@ namespace ServicioWindows
                         Console.WriteLine($"⚠️ Error en CargaDatosRealesSAP: {ex.Message}");
                     }
                 }
-
-
+                // Esperar un tiempo antes de la siguiente iteración del ciclo
                 await Task.Delay(TiempoCicloServicio, stoppingToken);
             }
         }
 
+        // ---------------------------------------------------------------------------------------------------------------------------
+
+        // Método para liberar recursos cuando ya no se necesita este objeto
+        // Aquí se cierra o libera la conexión con la base de datos si existe
+
         public void Dispose()
         {
+            // Si 'bbdd' no es null, se llama a su método Dispose para liberar recursos
             bbdd?.Dispose();
         }
 
+        // ---------------------------------------------------------------------------------------------------------------------------
     }
 
 }
