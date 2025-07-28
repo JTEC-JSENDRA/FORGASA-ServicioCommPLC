@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Globalization;
 using ServicioWindows.Models;
 using System.Runtime.InteropServices;
+using GestionRecetas.Models;
 
 namespace ServicioWindows.Clases
 {
@@ -89,7 +90,7 @@ namespace ServicioWindows.Clases
             }
 
         }
-        public void WriteBOOL(string NumeroDB, string Direccion, bool Valor)
+        public void WriteBOOL(string NumeroDB, string Direccion, bool Valor,Logs Logs)
         {
             try
             {
@@ -99,7 +100,8 @@ namespace ServicioWindows.Clases
             }
             catch (Exception ex)
             {
-               // Console.WriteLine($"[ERROR] Fallo al escribir en DB{NumeroDB}.DBX{Direccion}: {ex.Message}");
+                // Console.WriteLine($"[ERROR] Fallo al escribir en DB{NumeroDB}.DBX{Direccion}: {ex.Message}");
+                Logs.RegistrarError($"[ERROR] Fallo al escribir en DB{NumeroDB}.DBX{Direccion}: {ex.Message}");
                 throw;
             }
         }
@@ -262,17 +264,17 @@ namespace ServicioWindows.Clases
                 // Si hay error en chequeo de inicio, activar flag y registrar error
                 if (CheckRecetaInicio != 32767)
                 {
-                    WriteBOOL(DB_Offsets, "4.0", true);
+                    WriteBOOL(DB_Offsets, "4.0", true,Logs);
                     Logs.RegistrarError($"El offset de los datos de la receta en el DB: {DB}, no es correcto. Revisar el valor de la primera variable en el DB: {DB_Offsets}");
                 }
                 else
                 {
-                    WriteBOOL(DB_Offsets, "4.0", false);
+                    WriteBOOL(DB_Offsets, "4.0", false, Logs);
 
                     // Si hay error en chequeo de fin, activar otro flag y registrar error
                     if (CheckRecetaFin != 32767)
                     {
-                        WriteBOOL(DB_Offsets, "4.1", true);
+                        WriteBOOL(DB_Offsets, "4.1", true, Logs);
                         Logs.RegistrarError($"La longitud de la UDT de la receta en el DB: {DB}, no es correcta. Revisar el valor de la segunda variable en el DB: {DB_Offsets}");
                     }
                 }
@@ -280,8 +282,8 @@ namespace ServicioWindows.Clases
             else
             {
                 // Si no hay errores de chequeo, desactivar flags de error
-                WriteBOOL(DB_Offsets, "4.0", false);
-                WriteBOOL(DB_Offsets, "4.1", false);
+                WriteBOOL(DB_Offsets, "4.0", false, Logs);
+                WriteBOOL(DB_Offsets, "4.1", false, Logs);
 
                 // Si no se ha iniciado la receta en PLC, consultar API para iniciar
                 if (!InicioReceta)
@@ -300,7 +302,7 @@ namespace ServicioWindows.Clases
                             if (GenReceta.OF == null)
                             {
                                 // Flag para inicio receta
-                                WriteBOOL(DB, $"{OffsetAccionScada}.0", true);
+                                WriteBOOL(DB, $"{OffsetAccionScada}.0", true, Logs);
                             }
                         }
                     }
@@ -309,10 +311,10 @@ namespace ServicioWindows.Clases
                 if (InicioReceta && !InicioCargado)
                 {
                     EtapaAct = 0;
-                    GenReceta.OF = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "ordenFabricacion")));
-                    GenReceta.NombreReceta = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "nombreReceta")));
-                    GenReceta.NumEtapas = Int16.Parse(await (DatosAPI.DatosCabecera(RutaConsumoAPI, "numeroEtapas")));
-                    GenReceta.NombreEtapaSiguiente = await (DatosAPI.DatosCabeceraEtapa(RutaConsumoAPI, "nombre", EtapaAct + 1));
+                    GenReceta.OF = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "ordenFabricacion",Logs)));
+                    GenReceta.NombreReceta = (await (DatosAPI.DatosCabecera(RutaConsumoAPI, "nombreReceta", Logs)));
+                    GenReceta.NumEtapas = Int16.Parse(await (DatosAPI.DatosCabecera(RutaConsumoAPI, "numeroEtapas", Logs)));
+                    GenReceta.NombreEtapaSiguiente = await (DatosAPI.DatosCabeceraEtapa(RutaConsumoAPI, "nombre", EtapaAct + 1,Logs));
 
                     // Escribir datos leídos en PLC
                     WriteSTRING(DB, $"{OffsetOF}.0", GenReceta.OF, Logs);
@@ -321,10 +323,10 @@ namespace ServicioWindows.Clases
                     WriteSTRING(DB, $"{OffsetNombreEtapa}.0", GenReceta.NombreEtapaSiguiente, Logs);
 
                     // Cargar datos de la primera etapa desde API
-                    await DatosAPI.DatosEtapas(DB, DB_Offsets, RutaConsumoAPI, EtapaAct + 1);
+                    await DatosAPI.DatosEtapas(DB, DB_Offsets, RutaConsumoAPI, Logs,EtapaAct + 1);
 
                     // Flag de inicio cargado
-                    WriteBOOL(DB, $"{OffsetComm}.3", true); //BOOL Inicio Cargado
+                    WriteBOOL(DB, $"{OffsetComm}.3", true, Logs); //BOOL Inicio Cargado
                     Logs.RegistrarInfo($"Inicio de la receta en el reactor: {NombreReactor}");
                 }
 
@@ -335,32 +337,32 @@ namespace ServicioWindows.Clases
                     EtapaAct++;
                     // Actualizar en PLC
                     WriteINT(DB, $"{OffsetEtapaAct}.0", EtapaAct);
-                    WriteBOOL(DB, $"{OffsetComm}.3", true);
+                    WriteBOOL(DB, $"{OffsetComm}.3", true, Logs);
                                         
                     GenReceta.NumEtapas = ReadINT(DB, $"{OffsetNumEtapas}.0");
                     GenReceta.OF = ReadSTRING(DB, $"{OffsetOF}");
 
                     // Leer nombre actualizado de etapa desde API y escribirlo en PLC
-                    GenReceta.NombreEtapaActual = await DatosAPI.DatosCabeceraEtapa(RutaConsumoAPI, "nombre", EtapaAct);
+                    GenReceta.NombreEtapaActual = await DatosAPI.DatosCabeceraEtapa(RutaConsumoAPI, "nombre", EtapaAct, Logs);
                     WriteSTRING(DB, $"{OffsetNombreEtapa}.0", GenReceta.NombreEtapaActual, Logs);
 
                     // Si se alcanzó la última etapa, marcarla en PLC y registrar log
                     if (EtapaAct >= GenReceta.NumEtapas)
                     {
                         // Flag última etapa
-                        WriteBOOL(DB, $"{OffsetComm}.5", true); //BOOL Ultima Etapa
+                        WriteBOOL(DB, $"{OffsetComm}.5", true, Logs); //BOOL Ultima Etapa
                         Logs.RegistrarInfo($"Ultima etapa de la receta en el reactor: {NombreReactor}");
                     }
                     else
                     {
                         // Sino, cargar siguiente etapa desde API y escribir en PLC
-                        GenReceta.NombreEtapaSiguiente = await (DatosAPI.DatosCabeceraEtapa(RutaConsumoAPI, "nombre", EtapaAct));
+                        GenReceta.NombreEtapaSiguiente = await (DatosAPI.DatosCabeceraEtapa(RutaConsumoAPI, "nombre", EtapaAct, Logs));
                         WriteSTRING(DB, $"{OffsetNombreEtapa}.0", GenReceta.NombreEtapaSiguiente, Logs);
                         
-                        await DatosAPI.DatosEtapas(DB, DB_Offsets, RutaConsumoAPI, EtapaAct + 1);
+                        await DatosAPI.DatosEtapas(DB, DB_Offsets, RutaConsumoAPI,Logs, EtapaAct + 1 );
                     }
 
-                    WriteBOOL(DB, $"{OffsetComm}.4", true);
+                    WriteBOOL(DB, $"{OffsetComm}.4", true, Logs);
                     Logs.RegistrarInfo($"📤 Enviando etapa a API - OF: {GenReceta.OF}, EtapaAct: {EtapaAct}, NombreEtapaActual: '{GenReceta.NombreEtapaActual}', NombreEtapaSiguiente: '{GenReceta.NombreEtapaSiguiente}'");
                     DatosAPI.ActualizarEtapaAPI(GenReceta, EtapaAct, Logs);
                 }
@@ -373,7 +375,7 @@ namespace ServicioWindows.Clases
                     if (EtapaAct >= GenReceta.NumEtapas)
                     {
                         // Flag última etapa
-                        WriteBOOL(DB, $"{OffsetComm}.5", true); //BOOL Ultima Etapa
+                        WriteBOOL(DB, $"{OffsetComm}.5", true, Logs); //BOOL Ultima Etapa
                     }
                 }
 
@@ -395,10 +397,10 @@ namespace ServicioWindows.Clases
                     string destino = DB switch
                     {
                         "8000" => "8500",
-                        "8001" => "8501",
-                        "8002" => "8502",
-                        "8003" => "8503",
-                        "8004" => "8504",
+                        //"8001" => "8501",
+                        //"8002" => "8502",
+                        //"8003" => "8503",
+                        //"8004" => "8504",
                         _ => "Desconocido"
                     };
 
@@ -438,7 +440,7 @@ namespace ServicioWindows.Clases
                                                      datos_cleanUp.Lignosulfonato, datos_cleanUp.Potasa);
                     
                     // Indicar al PLC que puede vaciar datos
-                    WriteBOOL(DB, $"{OffsetAccionScada}.4", true); //BOOL Vaciar datos
+                    //WriteBOOL(DB, $"{OffsetAccionScada}.4", true   , Logs); //BOOL Vaciar datos
 
                 }
             }
@@ -453,7 +455,7 @@ namespace ServicioWindows.Clases
         // Calcula posiciones(offsets) en memoria y escribe valores en función de las consignas recibidas.
         // Soporta varios procesos como cargas, espera, agitación y temperatura.
 
-        public void CargaDatosReceta(string DB, string DB_Offsets, string NombrePropiedad, string ValorConsigna)
+        public void CargaDatosReceta(string DB, string DB_Offsets, string NombrePropiedad, string ValorConsigna, Logs Logs)
         {
             // Leer el offset base donde empieza la receta desde la memoria del PLC
             short OffsetReceta = ReadINT(DB_Offsets, "0.0");            //118.0
@@ -621,7 +623,7 @@ namespace ServicioWindows.Clases
                     else if (Consigna == "Intermitencia")
                     {
                         // Escribir valor booleano (true/false)
-                        WriteBOOL(DB, DireccionConsignas, Boolean.Parse(ValorConsigna));
+                        WriteBOOL(DB, DireccionConsignas, Boolean.Parse(ValorConsigna), Logs);
                     }
                     else
                     {
@@ -656,40 +658,40 @@ namespace ServicioWindows.Clases
                     if ((Tipo == "Carga_Solidos_1" || Tipo == "Carga_Solidos_2" || Tipo == "Carga_Solidos_3" || Tipo == "Carga_Agua_Descal" || Tipo == "Carga_Agua_Recup"
                             || Tipo == "Carga_Antiespumante" || Tipo == "Carga_Ligno" || Tipo == "Carga_Potasa") && (ValorConsigna.ToString() == "True"))
                     {
-                        WriteBOOL(DB, ProcesoCarga, true);
-                        WriteBOOL(DB, ProcesoEspera, false);
-                        WriteBOOL(DB, ProcesoOperador, false);
-                        WriteBOOL(DB, $"{ProcesoActivo.ToString()}", true);
+                        WriteBOOL(DB, ProcesoCarga, true, Logs);
+                        WriteBOOL(DB, ProcesoEspera, false, Logs);
+                        WriteBOOL(DB, ProcesoOperador, false, Logs);
+                        WriteBOOL(DB, $"{ProcesoActivo.ToString()}", true, Logs);
                     }
                     else if ((Tipo == "Espera") && (ValorConsigna.ToString() == "True"))
                     {
-                        WriteBOOL(DB, ProcesoCarga, false);
-                        WriteBOOL(DB, ProcesoEspera, true);
-                        WriteBOOL(DB, ProcesoOperador, false);
+                        WriteBOOL(DB, ProcesoCarga, false, Logs);
+                        WriteBOOL(DB, ProcesoEspera, true, Logs);
+                        WriteBOOL(DB, ProcesoOperador, false, Logs);
                         }
                     else if ((Tipo == "Operador") && (ValorConsigna.ToString() == "True"))
                     {
-                        WriteBOOL(DB, ProcesoCarga, false);
-                        WriteBOOL(DB, ProcesoEspera, false);
-                        WriteBOOL(DB, ProcesoOperador, true);
+                        WriteBOOL(DB, ProcesoCarga, false, Logs);
+                        WriteBOOL(DB, ProcesoEspera, false, Logs);
+                        WriteBOOL(DB, ProcesoOperador, true, Logs);
                     }
 
                     // Activar o desactivar procesos secundarios Agitación y Temperatura
                     if (Tipo == "Agitacion" && (ValorConsigna.ToString() == "True"))
                     {
-                        WriteBOOL(DB, $"{OffsetProcesoAgitacion.ToString()}.0", true);
+                        WriteBOOL(DB, $"{OffsetProcesoAgitacion.ToString()}.0", true, Logs);
                     }
                     else if (Tipo == "Agitacion" && (ValorConsigna.ToString() == "False"))
                     {
-                        WriteBOOL(DB, $"{OffsetProcesoAgitacion.ToString()}.0", false);
+                        WriteBOOL(DB, $"{OffsetProcesoAgitacion.ToString()}.0", false, Logs);
                     }
                     if (Tipo == "Temperatura" && (ValorConsigna.ToString() == "True"))
                     {
-                        WriteBOOL(DB, $"{OffsetProcesoTemperatura.ToString()}.0", true);
+                        WriteBOOL(DB, $"{OffsetProcesoTemperatura.ToString()}.0", true, Logs);
                     }
                     else if (Tipo == "Temperatura" && (ValorConsigna.ToString() == "False"))
                     {
-                        WriteBOOL(DB, $"{OffsetProcesoTemperatura.ToString()}.0", false);
+                        WriteBOOL(DB, $"{OffsetProcesoTemperatura.ToString()}.0", false, Logs);
                     }
                     break;
 
@@ -825,10 +827,34 @@ namespace ServicioWindows.Clases
             WriteFLOAT(DB, offsetPotasa, 0);
 
             // Finalmente, deshabilita la lectura estableciendo el flag en false
-            WriteBOOL(DB, $"{offsetEnabled}.0", false); // Habilitación en false
+            WriteBOOL(DB, $"{offsetEnabled}.0", false, logs); // Habilitación en false
         }
 
         // ---------------------------------------------------------------------------------------------------------------------------
+
+        public void EnviarDatosRealesUmbral(string DB, UmbralesRequest Umbrales, Logs logs)
+        {
+            // Definimos los offsets de memoria para cada dato que vamos a borrar
+            string offsetsolido1 = "0";
+            string offsetsolido2 = "4";
+            string offsetsolido3 = "8";
+            string offsetAgua = "12";
+            string offsetAguaRecu = "16";
+            string offsetAnties = "20";
+            string offsetLigno = "24";
+            string offsetPotasa = "28";
+
+            // Escribimos valores "vacíos" o cero en cada offset correspondiente:
+            WriteFLOAT(DB, offsetsolido2, Umbrales.lc70);
+            WriteFLOAT(DB, offsetsolido3, Umbrales.lc80);
+            WriteFLOAT(DB, offsetsolido1, Umbrales.hl26);
+            WriteFLOAT(DB, offsetAgua, Umbrales.agua);
+            WriteFLOAT(DB, offsetAguaRecu, Umbrales.aguaRecuperada);
+            WriteFLOAT(DB, offsetAnties, Umbrales.antiespumante);
+            WriteFLOAT(DB, offsetLigno, Umbrales.ligno);
+            WriteFLOAT(DB, offsetPotasa, Umbrales.potasa);
+        }
+
         #endregion
     }
 } 

@@ -17,8 +17,8 @@ namespace ServicioWindows.Datos
             // Aquí se agregan manualmente las direcciones IP de los PLCs que se van a utilizar en la planta
             // Puedes descomentar o agregar más líneas según los PLCs disponibles
 
-            //PLCs.Add("192.168.8.1");      // Ejemplo: PLC de la zona de electrolito
-            PLCs.Add("10.10.40.30");        // PLC activo actual
+            PLCs.Add("192.168.8.1");        // Ejemplo: PLC de la zona de Ratas muertas
+            //PLCs.Add("10.10.40.30");      // PLC Simulacion
             //PLCs.Add("192.168.24.1");     // Ejemplo: PLC de la zona de sales
 
         }

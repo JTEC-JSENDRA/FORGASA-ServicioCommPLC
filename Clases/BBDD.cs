@@ -2,6 +2,7 @@
 using System.Data;
 using System.Data.SqlClient;
 using ServicioWindows.Models;
+using GestionRecetas.Models;
 
 namespace ServicioWindows.Clases
 {
@@ -588,6 +589,46 @@ namespace ServicioWindows.Clases
                     }
                 }
             }
+        }
+
+        // ---------------------------------------------------------------------------------------------------------------------------
+
+        // Método asíncrono que obtiene los umbrales de error de cada MMPP
+
+        public async Task<UmbralesRequest> ObtenerUmbrales()
+        {
+            UmbralesRequest umbrales = null;
+
+            using (SqlConnection connection = new SqlConnection(connectionString))
+            {
+                await connection.OpenAsync();
+
+                string query = @"SELECT TOP 1 
+                            lc70, lc80, hl26, agua, aguaRecuperada, 
+                            antiespumante, ligno, potasa 
+                         FROM Umbrales";
+
+                using (SqlCommand command = new SqlCommand(query, connection))
+                using (SqlDataReader reader = await command.ExecuteReaderAsync())
+                {
+                    if (await reader.ReadAsync())
+                    {
+                        umbrales = new UmbralesRequest
+                        {
+                            lc70 = reader.GetDouble(reader.GetOrdinal("lc70")),
+                            lc80 = reader.GetDouble(reader.GetOrdinal("lc80")),
+                            hl26 = reader.GetDouble(reader.GetOrdinal("hl26")),
+                            agua = reader.GetDouble(reader.GetOrdinal("agua")),
+                            aguaRecuperada = reader.GetDouble(reader.GetOrdinal("aguaRecuperada")),
+                            antiespumante = reader.GetDouble(reader.GetOrdinal("antiespumante")),
+                            ligno = reader.GetDouble(reader.GetOrdinal("ligno")),
+                            potasa = reader.GetDouble(reader.GetOrdinal("potasa"))
+                        };
+                    }
+                }
+            }
+
+            return umbrales;
         }
 
         // ---------------------------------------------------------------------------------------------------------------------------

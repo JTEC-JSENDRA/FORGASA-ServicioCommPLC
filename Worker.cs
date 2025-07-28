@@ -1,4 +1,5 @@
-﻿using S7.Net;
+﻿using GestionRecetas.Models;
+using S7.Net;
 using ServicioWindows.Clases;
 using ServicioWindows.Datos;
 using ServicioWindows.Models;
@@ -49,6 +50,11 @@ namespace ServicioWindows
         // Tiempo que debe pasar entre cada lectura de SAP (4 horas)
         private readonly TimeSpan intervaloLecturaSAP = TimeSpan.FromMinutes(240);
 
+        // Fecha y hora de la última vez que se leyó información de Umbrales, iniciada con el valor mínimo posible
+        private DateTime ultimaEjecucionLecturaUmbral = DateTime.MinValue;
+        // Tiempo que debe pasar entre cada lectura de Umbral (1 hmin)
+        private readonly TimeSpan intervaloLecturaUmbral = TimeSpan.FromMinutes(1);
+
         // Cliente HTTP para hacer peticiones web, se usa para conectarse a servicios externos
         private static readonly HttpClient client = new HttpClient();
 
@@ -64,6 +70,8 @@ namespace ServicioWindows
             string Usuario = "sa";
             string Password = "GomezMadrid2021";
             string connectionString = $"Data Source={ServidorSQL};Initial Catalog={BaseDatos};User ID={Usuario};Password={Password};";
+
+
 
             return new SQLServerManager(connectionString );
         }
@@ -123,18 +131,19 @@ namespace ServicioWindows
             }
 
             string DB_Offsets = "7999";                         // Parámetro fijo usado en llamadas (offset en DB)
-            string RutaApi = "http://localhost:7248/api/Worker/AlgunaLanzada/";
-            string RutaApiSAP = "http://localhost:7248/api/Liberadas/SAP/FO01";
-            //string RutaApiSAP_Front = "http://localhost:7248/api/Liberadas/FO01";
+            string RutaApi = "https://192.168.8.2:446/api/Worker/AlgunaLanzada/"; // 7248
+            string RutaApiSAP = "https://192.168.8.2:446/api/Liberadas/SAP/FO01"; // SE HA QUITADO EL CENTRO, YA UQE LO PONE POR DEFECTO
+            //string RutaApiSAP_Front = "https://192.168.8.2/api/Liberadas/FO01";
 
             // Bucle principal que se ejecuta hasta que se solicite detener el servicio
             while (!stoppingToken.IsCancellationRequested) 
             {
+                //logs.RegistrarInfo("[DEBUG 0]");
                 // Recorrer todos los PLCs para verificar comunicación y actualizar estados
                 for (int i = 0; i < NumeroPLCs; i++)
                 {
                     string IP = datos.ObtenerPLCs()[i];
-
+                    //logs.RegistrarInfo("[DEBUG 1]");
                     // Verificar si el PLC está disponible (encendido y accesible)
                     PLC_Enable[i] = utiles.DisponibilidadPLC(logs, IP, PLC_Enable[i]);
 
@@ -144,7 +153,7 @@ namespace ServicioWindows
                         StartUp[i] = commPLC[i].InicioConexion(logs, StartUp[i]);
                         // Verificar si hay fallo de comunicación
                         FalloComm[i] = commPLC[i].FalloCom(logs, FalloComm[i]);
-
+                        //logs.RegistrarInfo("[DEBUG 2]");
                         // Si la conexión con el PLC está activa
                         if (PLC[i].IsConnected)
                         {
@@ -153,9 +162,11 @@ namespace ServicioWindows
                                 // Para cada reactor asociado a este PLC
                                 for (int u = 0; u < NumeroReactores; u++)
                                 {
+                                    //logs.RegistrarInfo("[DEBUG 3]");
                                     // Verificar si el reactor está conectado al PLC por IP
                                     if (TotalReactores.ObtenerReactores()[u][0] == IP)
                                     {
+                                        //logs.RegistrarInfo("[DEBUG 4]");
                                         string NombreReactor = totalReactores.ObtenerReactores()[u][1];
                                         string DB_Reactor = totalReactores.ObtenerReactores()[u][2];
 
@@ -183,12 +194,14 @@ namespace ServicioWindows
                 // Cada 45 segundos (intervaloLecturaMMPP) actualizar datos de materias primas (MMPP)
                 if (DateTime.Now - ultimaEjecucionLecturaMMPP >= intervaloLecturaMMPP)
                 {
+                    //Console.WriteLine("MMPP -1");
                     ultimaEjecucionLecturaMMPP = DateTime.Now;
 
                     try
                     {
                         // Bases de datos para materias primas
                         string[] DBs = {"8500","8501","8502","8503" ,"8504"};
+                        //string[] DBs = { "8500" };
 
                         for (int index = 0; index < DBs.Length; index++)
                         {
@@ -209,6 +222,8 @@ namespace ServicioWindows
 
                             // Convertir el resultado JSON a objeto DatosMMPP
                             DatosMMPP datos = JsonSerializer.Deserialize<DatosMMPP>(resultado);
+                            //logs.RegistrarError($"Este es el destino: {destino}");
+                            //Console.WriteLine($"Este es el destino: {destino}");
 
                             if (datos != null)
                             {
@@ -225,11 +240,14 @@ namespace ServicioWindows
                     catch (Exception ex)
                     {
                         Console.WriteLine($"⚠️ Error en CargaDatosRealesMMPP: {ex.Message}");
+                        logs.RegistrarError("Error en CargaDatosRealesMMPP...");
                     }
                 }
+                
                 // Cada 4 horas (intervaloLecturaSAP) hacer lectura y actualización con SAP
                 if (DateTime.Now - ultimaEjecucionLecturaSAP >= intervaloLecturaSAP)
                 {
+                    logs.RegistrarInfo("Inicio LecturaSap");
                     ultimaEjecucionLecturaSAP = DateTime.Now;
                     try
                     {
@@ -240,15 +258,54 @@ namespace ServicioWindows
                         {
                             string result = await response.Content.ReadAsStringAsync();
                             Console.WriteLine($"✅ Datos recibidos de SAP: {result.Substring(0, Math.Min(200, result.Length))}...");
+                            logs.RegistrarInfo("Datos Recibidos des SAP");
+                            logs.RegistrarInfo($"{result.Substring(0, Math.Min(200, result.Length))}");
                         }
                         else
                         {
                             Console.WriteLine($"⚠️ Error al llamar API SAP: {response.StatusCode}");
+                            logs.RegistrarError("Error al llamar API SAP");
+                            logs.RegistrarInfo($"{response.StatusCode}");
+
                         }
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine($"⚠️ Error en CargaDatosRealesSAP: {ex.Message}");
+                        logs.RegistrarError("Error en CargaDatos SAP");
+
+                    }
+                }
+                // Cada 60 segundos (intervaloLecturaUmbral) actualizar datos de los Umbrales 
+                if (DateTime.Now - ultimaEjecucionLecturaUmbral >= intervaloLecturaUmbral)
+                {
+                    ultimaEjecucionLecturaUmbral = DateTime.Now;
+
+                    try
+                    {
+                        // Bases de datos para materias primas
+                        string db_umbral = "8750";
+
+                        // Obtener datos umbrales
+                        UmbralesRequest datos = await bbdd.ObtenerUmbrales();
+
+
+
+                        if (datos != null)
+                        {
+                            commPLC[0].EnviarDatosRealesUmbral(db_umbral, datos, logs);
+                        } 
+                        else
+                        {
+                            logs.RegistrarError("No se encontraron datos de umbrales en la base de datos");
+                            Console.WriteLine("⚠ No se encontraron datos de umbrales en la base de datos.");
+                        }
+
+                    }
+                    catch (Exception ex)
+                    {
+                        //Console.WriteLine($"⚠️ Error en CargaDatosUmbrales: {ex.Message}");
+                        logs.RegistrarError("Error en CargaDatosUmbrales: {ex.Message}");
                     }
                 }
                 // Esperar un tiempo antes de la siguiente iteración del ciclo

@@ -5,6 +5,8 @@ using ServicioWindows.Models;
 using System.Diagnostics;
 using System.Text;
 
+
+
 namespace ServicioWindows.Clases
 {
     internal class ConsAPI
@@ -40,7 +42,7 @@ namespace ServicioWindows.Clases
         // Recibe la URL de la API y el nombre del dato que se quiere obtener.
         // Devuelve el valor solicitado o null si ocurre un error.
 
-        public async Task<string> DatosCabecera(string apiUrl, string Dato)
+        public async Task<string> DatosCabecera(string apiUrl, string Dato, Logs Logs)
         {
             string Valor = null;
 
@@ -68,7 +70,8 @@ namespace ServicioWindows.Clases
             else
             {
                 // Mostrar mensaje si la respuesta no fue exitosa
-                Console.WriteLine($"Error: {response.StatusCode} - {response.ReasonPhrase}");
+                //Console.WriteLine($"Error: {response.StatusCode} - {response.ReasonPhrase}");
+                Logs.RegistrarError($"Error en DatosCabecera: {response.StatusCode} - {response.ReasonPhrase}");
             }
 
             return Valor;
@@ -80,7 +83,7 @@ namespace ServicioWindows.Clases
         // Recibe la URL, el nombre del dato y el índice de la etapa para acceder en el JSON.
         // Devuelve el valor solicitado o null si falla la petición.
 
-        public async Task<string> DatosCabeceraEtapa(string apiUrl, string Dato, int Etapa)
+        public async Task<string> DatosCabeceraEtapa(string apiUrl, string Dato, int Etapa, Logs Logs)
         {
             // Variable donde se guardará el valor extraído
             string Valor = null;
@@ -110,7 +113,8 @@ namespace ServicioWindows.Clases
             else
             {
                 // Si la respuesta no fue exitosa, mostrar el código de error y motivo en consola
-                Console.WriteLine($"Error: {response.StatusCode} - {response.ReasonPhrase}");
+                //Console.WriteLine($"Error: {response.StatusCode} - {response.ReasonPhrase}");
+                Logs.RegistrarError($"Error en DatosCabeceraEtapa: {response.StatusCode} - {response.ReasonPhrase}");
             }
             // Devolver el valor extraído (o null si no se pudo obtener)
             return Valor;
@@ -127,7 +131,7 @@ namespace ServicioWindows.Clases
         // - NEtapa: número de la etapa a procesar (por defecto 0).
         // Retorna un string (actualmente null, podría modificarse para otro uso).
 
-        public async Task<string> DatosEtapas(string DB, string DB_Offsets, string apiUrl, int NEtapa = 0)
+        public async Task<string> DatosEtapas(string DB, string DB_Offsets, string apiUrl, Logs logs ,int NEtapa = 0 )
         {
             // Variable que podría usarse para devolver algún valor (aquí no se usa)
             string Valor = null;
@@ -213,7 +217,8 @@ namespace ServicioWindows.Clases
                                 catch (Exception ex)
                                 {
                                     // En caso de error, mostrar advertencia y continuar con el siguiente
-                                    Console.WriteLine($"[WARN] No se pudo convertir el valor de la propiedad '{propertyName}' a double. Valor: {property.Value}. Excepción: {ex.Message}");
+                                    //Console.WriteLine($"[WARN] No se pudo convertir el valor de la propiedad '{propertyName}' a double. Valor: {property.Value}. Excepción: {ex.Message}");
+                                    logs.RegistrarError($"[WARN] No se pudo convertir el valor de la propiedad '{propertyName}' a double. Valor: {property.Value}. Excepción: {ex.Message}");
                                     continue; // Saltar esta iteración
                                 }
 
@@ -262,7 +267,7 @@ namespace ServicioWindows.Clases
                             }
 
                             // Finalmente, cargamos los datos al PLC usando el método correspondiente
-                            commPLC.CargaDatosReceta(DB, DB_Offsets, propertyName, propertyValue);
+                            commPLC.CargaDatosReceta(DB, DB_Offsets, propertyName, propertyValue, logs);
                         }
                     }
                 }
@@ -270,7 +275,8 @@ namespace ServicioWindows.Clases
             else
             {
                 // En caso de error en la solicitud HTTP, mostramos el código y el mensaje
-                Console.WriteLine($"Error: {response.StatusCode} - {response.ReasonPhrase}");
+                //Console.WriteLine($"Error: {response.StatusCode} - {response.ReasonPhrase}");
+                logs.RegistrarError($"Error en DatosEstapa: {response.StatusCode} - {response.ReasonPhrase}");
             }
             // Por ahora siempre devuelve null, pero se puede modificar
             return Valor;
@@ -278,7 +284,8 @@ namespace ServicioWindows.Clases
 
         // ---------------------------------------------------------------------------------------------------------------------------
 
-        // Método asíncrono que actualiza la etapa actual de una receta enviando datos a una API vía POST.
+        // Método asíncrono que actualiza la etapa actual de una receta enviando
+        // datos a una API vía POST.
         // Parámetros:
         // - GenReceta: objeto con información general de la receta (orden de fabricación, nombre de etapa, total de etapas).
         // - EtapaAct: número de la etapa actual.
@@ -287,6 +294,7 @@ namespace ServicioWindows.Clases
         public async Task ActualizarEtapaAPI(DatosGenReceta GenReceta, int EtapaAct, Logs Logs)
         {
             // Crear instancia de HttpClient dentro de using para liberar recursos automáticamente
+            Logs.RegistrarInfo("Inicio Actualizar OF");
             using (HttpClient httpClient = new HttpClient())
             {
                 // Crear un objeto anónimo con los datos que se enviarán a la API
@@ -297,12 +305,15 @@ namespace ServicioWindows.Clases
                     numeroEtapa = $"{EtapaAct}/{GenReceta.NumEtapas}"           // Formato "actual/total"
                 };
 
+                Logs.RegistrarInfo($"{data.OF} + {data.nombreEtapa} + {data.numeroEtapa} ");
                 // Convertir el objeto 'data' a JSON
                 var json = JsonConvert.SerializeObject(data);
                 // Crear contenido HTTP con el JSON y especificar que es tipo "application/json"
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                Logs.RegistrarInfo($"JSON enviado: {json}");
                 // URL de la API a la que se enviarán los datos
-                string RutaApiAct = "http://localhost:7248/api/Worker/ActualizarOF";
+                string RutaApiAct = "https://192.168.8.2:446/api/Worker/ActualizarOF";
                 
                 // Enviar una petición POST de manera asíncrona con el contenido JSON
                 HttpResponseMessage response = await httpClient.PostAsync(RutaApiAct, content);
@@ -336,7 +347,7 @@ namespace ServicioWindows.Clases
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 // URL de la API donde se realizará la petición POST para finalizar la OF
-                string RutaApiFin = "http://localhost:7248/api/Worker/FinalizarOF";
+                string RutaApiFin = "https://192.168.8.2:446/api/Worker/FinalizarOF";
 
                 // Enviar la petición POST de forma asíncrona y obtener la respuesta
                 HttpResponseMessage response = await httpClient.PostAsync(RutaApiFin, content);
