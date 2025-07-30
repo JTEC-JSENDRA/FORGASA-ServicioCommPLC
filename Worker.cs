@@ -133,6 +133,10 @@ namespace ServicioWindows
             string DB_Offsets = "7999";                         // Parámetro fijo usado en llamadas (offset en DB)
             string RutaApi = "https://192.168.8.2:446/api/Worker/AlgunaLanzada/"; // 7248
             string RutaApiSAP = "https://192.168.8.2:446/api/Liberadas/SAP/FO01"; // SE HA QUITADO EL CENTRO, YA UQE LO PONE POR DEFECTO
+
+            //string RutaApi = "http://localhost:7248/api/Worker/AlgunaLanzada/"; // 7248
+            //string RutaApiSAP = "http://localhost:7248/api/Liberadas/SAP/FO01"; // SE HA QUITADO EL CENTRO, YA UQE LO PONE POR DEFECTO
+
             //string RutaApiSAP_Front = "https://192.168.8.2/api/Liberadas/FO01";
 
             // Bucle principal que se ejecuta hasta que se solicite detener el servicio

@@ -314,7 +314,7 @@ namespace ServicioWindows.Clases
                 Logs.RegistrarInfo($"JSON enviado: {json}");
                 // URL de la API a la que se enviarán los datos
                 string RutaApiAct = "https://192.168.8.2:446/api/Worker/ActualizarOF";
-                
+                //string RutaApiAct = "http://localhost:7248/api/Worker/ActualizarOF";
                 // Enviar una petición POST de manera asíncrona con el contenido JSON
                 HttpResponseMessage response = await httpClient.PostAsync(RutaApiAct, content);
             }
@@ -348,7 +348,7 @@ namespace ServicioWindows.Clases
 
                 // URL de la API donde se realizará la petición POST para finalizar la OF
                 string RutaApiFin = "https://192.168.8.2:446/api/Worker/FinalizarOF";
-
+                //string RutaApiFin = "http://localhost:7248/api/Worker/FinalizarOF";
                 // Enviar la petición POST de forma asíncrona y obtener la respuesta
                 HttpResponseMessage response = await httpClient.PostAsync(RutaApiFin, content);
 
